@@ -171,7 +171,7 @@ class _HomePageState extends State<HomePage> {
                                   await Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => PetDetailsPage(petId: petId),
+                                      builder: (context) => PetDetailsPage(petId: petId, currentLanguage: widget.currentLanguage,),
                                     ),
                                   );
                                   _refreshData(); // Refresh after returning

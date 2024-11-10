@@ -7,8 +7,9 @@ import 'dart:typed_data';
 
 class PetDetailsPage extends StatefulWidget {
   final String petId;
+  final String currentLanguage; // Nyelvi kód
 
-  PetDetailsPage({required this.petId});
+  PetDetailsPage({required this.petId, required this.currentLanguage});
 
   @override
   _PetDetailsPageState createState() => _PetDetailsPageState();
@@ -26,11 +27,41 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
   bool _isLoading = true;
   String? _imageUrl;
   Uint8List? _imageBytes;
+  Map<String, String>? _translations;
 
   @override
   void initState() {
     super.initState();
+    _loadTranslations();
     _loadPetDetails();
+  }
+
+  Future<void> _loadTranslations() async {
+    DocumentSnapshot translationDoc = await _firestore
+        .collection('translations')
+        .doc(widget.currentLanguage)
+        .get();
+
+    setState(() {
+      _translations = {
+        'pet_details_title': translationDoc['pet_details_title'] ?? 'Pet Details',
+        'upload_image_button': translationDoc['upload_image_button'] ?? 'Upload Image',
+        'name_label': translationDoc['name_label'] ?? 'Name',
+        'dob_label': translationDoc['dob_label'] ?? 'Date of Birth',
+        'weight_label': translationDoc['weight_label'] ?? 'Weight',
+        'save_button': translationDoc['save_button'] ?? 'Save',
+        'delete_button': translationDoc['delete_button'] ?? 'Delete',
+        'pet_not_found': translationDoc['pet_not_found'] ?? 'Pet not found',
+        'error_loading_pet_details': translationDoc['error_loading_pet_details'] ?? 'Error loading pet details: ',
+        'image_uploaded_success': translationDoc['image_uploaded_success'] ?? 'Image uploaded successfully!',
+        'error_uploading_image': translationDoc['error_uploading_image'] ?? 'Error uploading image: ',
+        'pet_updated_success': translationDoc['pet_updated_success'] ?? 'Pet updated successfully!',
+        'error_updating_pet': translationDoc['error_updating_pet'] ?? 'Error updating pet: ',
+        'fill_out_all_fields': translationDoc['fill_out_all_fields'] ?? 'Please fill out all fields',
+        'pet_deleted_success': translationDoc['pet_deleted_success'] ?? 'Pet deleted successfully!',
+        'error_deleting_pet': translationDoc['error_deleting_pet'] ?? 'Error deleting pet: '
+      };
+    });
   }
 
   Future<void> _loadPetDetails() async {
@@ -50,7 +81,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Pet not found')),
+          SnackBar(content: Text(_translations?['pet_not_found'] ?? 'Pet not found')),
         );
       }
     } catch (e) {
@@ -58,7 +89,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
         _isLoading = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading pet details: $e')),
+        SnackBar(content: Text('${_translations?['error_loading_pet_details'] ?? 'Error loading pet details:'} $e')),
       );
     }
   }
@@ -94,11 +125,11 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Image uploaded successfully!')),
+        SnackBar(content: Text(_translations?['image_uploaded_success'] ?? 'Image uploaded successfully!')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error uploading image: $e')),
+        SnackBar(content: Text('${_translations?['error_uploading_image'] ?? 'Error uploading image:'} $e')),
       );
     }
   }
@@ -117,17 +148,17 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Pet updated successfully!')),
+          SnackBar(content: Text(_translations?['pet_updated_success'] ?? 'Pet updated successfully!')),
         );
         Navigator.pop(context);
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating pet: $e')),
+          SnackBar(content: Text('${_translations?['error_updating_pet'] ?? 'Error updating pet:'} $e')),
         );
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please fill out all fields')),
+        SnackBar(content: Text(_translations?['fill_out_all_fields'] ?? 'Please fill out all fields')),
       );
     }
   }
@@ -137,21 +168,27 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       await _firestore.collection('pets').doc(widget.petId).delete();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Pet deleted successfully!')),
+        SnackBar(content: Text(_translations?['pet_deleted_success'] ?? 'Pet deleted successfully!')),
       );
       Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error deleting pet: $e')),
+        SnackBar(content: Text('${_translations?['error_deleting_pet'] ?? 'Error deleting pet:'} $e')),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_translations == null) {
+      return Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Pet Details'),
+        title: Text(_translations!['pet_details_title']!),
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
@@ -171,23 +208,23 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
               SizedBox(height: 10),
               ElevatedButton(
                 onPressed: _pickImage,
-                child: Text('Upload Image'),
+                child: Text(_translations!['upload_image_button']!),
               ),
               SizedBox(height: 20),
               TextField(
                 controller: _nameController,
-                decoration: InputDecoration(labelText: 'Name'),
+                decoration: InputDecoration(labelText: _translations!['name_label']),
               ),
               SizedBox(height: 10),
               TextField(
                 controller: _dobController,
-                decoration: InputDecoration(labelText: 'Date of Birth'),
+                decoration: InputDecoration(labelText: _translations!['dob_label']),
                 keyboardType: TextInputType.datetime,
               ),
               SizedBox(height: 10),
               TextField(
                 controller: _weightController,
-                decoration: InputDecoration(labelText: 'Weight'),
+                decoration: InputDecoration(labelText: _translations!['weight_label']),
                 keyboardType: TextInputType.number,
               ),
               SizedBox(height: 20),
@@ -196,11 +233,11 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
                 children: [
                   ElevatedButton(
                     onPressed: _updatePet,
-                    child: Text('Save'),
+                    child: Text(_translations!['save_button']!),
                   ),
                   ElevatedButton(
                     onPressed: _deletePet,
-                    child: Text('Delete'),
+                    child: Text(_translations!['delete_button']!),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                     ),
