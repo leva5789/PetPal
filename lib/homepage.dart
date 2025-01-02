@@ -5,10 +5,12 @@ import 'package:intl/intl.dart';
 import 'package:petpal/new_pet_form_page.dart';
 import 'package:petpal/new_task_form_page.dart';
 import 'package:petpal/pet_details_page.dart';
-import 'daily_tasks_list.dart'; // Import the new file for daily tasks
+import 'daily_tasks_list.dart';
+import 'footer.dart';
+import 'chat.dart';
 
 class HomePage extends StatefulWidget {
-  final String currentLanguage; // Language code
+  final String currentLanguage;
 
   HomePage({required this.currentLanguage});
 
@@ -19,6 +21,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  int _selectedIndex = 0;
 
   Future<Map<String, String>> _getUserData() async {
     User? user = _auth.currentUser;
@@ -35,7 +39,6 @@ class _HomePageState extends State<HomePage> {
         String fullName = (userDoc['fullName'] as String?) ?? 'N/A';
         String profilePictureUrl = (userDoc['profilePictureUrl'] as String?) ?? '';
 
-        // Fetch translations based on the selected language
         DocumentSnapshot translationDoc = await _firestore
             .collection('translations')
             .doc(widget.currentLanguage)
@@ -79,7 +82,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _refreshData() {
-    setState(() {}); // Rebuilds the widget to refresh FutureBuilder
+    setState(() {});
   }
 
   @override
@@ -139,7 +142,7 @@ class _HomePageState extends State<HomePage> {
                               builder: (context) => NewPetFormPage(currentLanguage: widget.currentLanguage),
                             ),
                           );
-                          _refreshData(); // Refresh after returning
+                          _refreshData();
                         },
                       ),
                     ],
@@ -171,10 +174,13 @@ class _HomePageState extends State<HomePage> {
                                   await Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => PetDetailsPage(petId: petId, currentLanguage: widget.currentLanguage,),
+                                      builder: (context) => PetDetailsPage(
+                                        petId: petId,
+                                        currentLanguage: widget.currentLanguage,
+                                      ),
                                     ),
                                   );
-                                  _refreshData(); // Refresh after returning
+                                  _refreshData();
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -182,7 +188,10 @@ class _HomePageState extends State<HomePage> {
                                     children: [
                                       CircleAvatar(
                                         radius: 40,
-                                        backgroundImage: NetworkImage(pet['profilePictureUrl'] ?? 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS3hTQwsrGuYW0XGXbIB4d2noVL1ZhL7llERA&s'),
+                                        backgroundImage: NetworkImage(
+                                          pet['profilePictureUrl'] ??
+                                              'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS3hTQwsrGuYW0XGXbIB4d2noVL1ZhL7llERA&s',
+                                        ),
                                       ),
                                       SizedBox(height: 8),
                                       Text(
@@ -217,20 +226,34 @@ class _HomePageState extends State<HomePage> {
                               builder: (context) => NewTaskFormPage(),
                             ),
                           );
-                          _refreshData(); // Refresh after returning
+                          _refreshData();
                         },
                       ),
                     ],
                   ),
                   SizedBox(height: 10),
                   Expanded(
-                    child: DailyTasksList(), // Replaced with the new widget
+                    child: DailyTasksList(),
                   ),
                 ],
               ),
             );
           }
         },
+      ),
+      bottomNavigationBar: Footer(
+        onTabSelected: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+          if (index == 1) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => ChatPage()),
+            );
+          }
+        },
+        currentIndex: _selectedIndex,
       ),
     );
   }
