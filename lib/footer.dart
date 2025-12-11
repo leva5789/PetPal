@@ -1,19 +1,26 @@
 import 'package:flutter/material.dart';
-import 'chat.dart'; // Import the ChatPage
-import 'statspage.dart'; // Import the StatsPage
+import 'chat.dart';
+import 'statspage.dart';
+import 'info_page.dart'; // ⬅️ ÚJ IMPORT
 
 class Footer extends StatelessWidget {
   final Function(int) onTabSelected;
   final int currentIndex;
 
-  Footer({required this.onTabSelected, required this.currentIndex});
+  const Footer({
+    super.key,
+    required this.onTabSelected,
+    required this.currentIndex,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey, width: 0.5)),
+        border: Border(
+          top: BorderSide(color: Colors.grey, width: 0.5),
+        ),
       ),
       child: BottomNavigationBar(
         currentIndex: currentIndex,
@@ -30,9 +37,14 @@ class Footer extends StatelessWidget {
             icon: Icon(Icons.bar_chart),
             label: '',
           ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.book), // ⬅️ KÖNYV IKON
+            label: '',
+          ),
         ],
         onTap: (index) {
           onTabSelected(index);
+
           if (index == 1) {
             Navigator.push(
               context,
@@ -42,6 +54,11 @@ class Footer extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => StatsPage()),
+            );
+          } else if (index == 3) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const InfoPage()),
             );
           }
         },

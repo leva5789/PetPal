@@ -18,82 +18,84 @@ class _NewPetFormPageState extends State<NewPetFormPage> {
   final TextEditingController _dobController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
   String? _selectedGender;
+  String? _selectedBreed;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  String _imageUrl = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS3hTQwsrGuYW0XGXbIB4d2noVL1ZhL7llERA&s';
+  String _imageUrl =
+      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS3hTQwsrGuYW0XGXbIB4d2noVL1ZhL7llERA&s';
 
-  Map<String, String>? _translations;
+  List<String> _breedList = [
+    'Beagle', 'Boxer', 'Bulldog', 'Dachshund', 'German Shepherd',
+    'German Shorthaired Pointer', 'Golden Retriever', 'Labrador Retriever',
+    'Pembroke Welsh Corgi', 'Poodle', 'Rottweiler', 'Shih Tzu',
+    'Siberian Husky'
+  ]; // Manually defined list of breeds
 
   @override
   void initState() {
     super.initState();
-    _loadTranslations();
-  }
-
-  Future<void> _loadTranslations() async {
-    DocumentSnapshot translationDoc = await _firestore
-        .collection('translations')
-        .doc(widget.currentLanguage)
-        .get();
-
-    setState(() {
-      _translations = {
-        'add_new_pet': translationDoc['add_new_pet'] ?? 'Add New Pet',
-        'upload_image': translationDoc['upload_image'] ?? 'Upload Image',
-        'name_label': translationDoc['name_label'] ?? 'Name',
-        'dob_label': translationDoc['dob_label'] ?? 'Date of Birth',
-        'weight_label': translationDoc['weight_label'] ?? 'Weight',
-        'gender_label': translationDoc['gender_label'] ?? 'Gender',
-        'gender_female': translationDoc['gender_female'] ?? 'Female',
-        'gender_male': translationDoc['gender_male'] ?? 'Male',
-        'save_pet': translationDoc['save_pet'] ?? 'Save Pet',
-        'pet_added_success': translationDoc['pet_added_success'] ?? 'Pet added successfully!',
-        'fill_out_all_fields': translationDoc['fill_out_all_fields'] ?? 'Please fill out all fields'
-      };
-    });
   }
 
   void _savePet() async {
-    User? user = _auth.currentUser;
+    final user = _auth.currentUser;
 
-    if (user != null && _translations != null) {
-      String userId = user.uid;
-      String name = _nameController.text;
-      String dob = _dobController.text;
-      String weight = _weightController.text;
-      String gender = _selectedGender ?? '';
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('User not logged in')),
+      );
+      return;
+    }
 
-      if (name.isNotEmpty && dob.isNotEmpty && weight.isNotEmpty && gender.isNotEmpty) {
-        DocumentSnapshot userDoc = await _firestore.collection('users').doc(userId).get();
-        String userName = userDoc.exists ? (userDoc['fullName'] as String? ?? 'Unknown') : 'Unknown';
+    final name = _nameController.text.trim();
+    final dob = _dobController.text.trim();
+    final weight = _weightController.text.trim();
+    final gender = _selectedGender ?? '';
+    final breed = _selectedBreed ?? '';
 
-        DocumentReference newPetRef = await _firestore.collection('pets').add({
-          'userId': userId,
-          'userName': userName,
-          'name': name,
-          'dob': dob,
-          'weight': weight,
-          'gender': gender,
-          'profilePictureUrl': _imageUrl,
-        });
+    if (name.isEmpty ||
+        dob.isEmpty ||
+        weight.isEmpty ||
+        gender.isEmpty ||
+        breed.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please fill out all fields')),
+      );
+      return;
+    }
 
-        await newPetRef.update({'id': newPetRef.id});
+    try {
+      final userDoc =
+      await _firestore.collection('users').doc(user.uid).get();
+      final userName =
+      userDoc.exists ? (userDoc['fullName'] as String? ?? 'Unknown') : 'Unknown';
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_translations!['pet_added_success']!)),
-        );
-        Navigator.pop(context);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_translations!['fill_out_all_fields']!)),
-        );
-      }
+      final newPetRef = await _firestore.collection('pets').add({
+        'userId': user.uid,
+        'userName': userName,
+        'name': name,
+        'dob': dob,
+        'weight': weight,
+        'gender': gender,
+        'breed': breed,
+        'profilePictureUrl': _imageUrl,
+      });
+
+      await newPetRef.update({'id': newPetRef.id});
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Pet added successfully!')),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving pet: $e')),
+      );
     }
   }
 
   Future<void> _selectDate(BuildContext context) async {
-    DateTime? pickedDate = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime(1900),
@@ -109,15 +111,9 @@ class _NewPetFormPageState extends State<NewPetFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_translations == null) {
-      return Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(_translations!['add_new_pet']!),
+        title: Text('Add New Pet'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -135,18 +131,18 @@ class _NewPetFormPageState extends State<NewPetFormPage> {
                 onPressed: () {
                   // Placeholder for image upload functionality
                 },
-                child: Text(_translations!['upload_image']!),
+                child: Text('Upload Image'),
               ),
               SizedBox(height: 20),
               TextField(
                 controller: _nameController,
-                decoration: InputDecoration(labelText: _translations!['name_label']),
+                decoration: InputDecoration(labelText: 'Name'),
               ),
               SizedBox(height: 10),
               TextField(
                 controller: _dobController,
                 decoration: InputDecoration(
-                  labelText: _translations!['dob_label'],
+                  labelText: 'Date of Birth',
                   suffixIcon: IconButton(
                     icon: Icon(Icons.calendar_today),
                     onPressed: () => _selectDate(context),
@@ -157,17 +153,25 @@ class _NewPetFormPageState extends State<NewPetFormPage> {
               SizedBox(height: 10),
               TextField(
                 controller: _weightController,
-                decoration: InputDecoration(labelText: _translations!['weight_label']),
+                decoration: InputDecoration(labelText: 'Weight'),
                 keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly], // Csak számok engedélyezése
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
               ),
               SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                decoration: InputDecoration(labelText: _translations!['gender_label']),
+                decoration: InputDecoration(labelText: 'Gender'),
                 value: _selectedGender,
-                items: [
-                  DropdownMenuItem(value: 'female', child: Text(_translations!['gender_female']!)),
-                  DropdownMenuItem(value: 'male', child: Text(_translations!['gender_male']!)),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'female',
+                    child: Text('Female'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'male',
+                    child: Text('Male'),
+                  ),
                 ],
                 onChanged: (value) {
                   setState(() {
@@ -175,10 +179,27 @@ class _NewPetFormPageState extends State<NewPetFormPage> {
                   });
                 },
               ),
+              SizedBox(height: 10),
+              // Kutyafajta legördülő lista
+              DropdownButtonFormField<String>(
+                decoration: InputDecoration(labelText: 'Breed'),
+                value: _selectedBreed,
+                items: _breedList.map((breed) {
+                  return DropdownMenuItem(
+                    value: breed,
+                    child: Text(breed),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedBreed = value;
+                  });
+                },
+              ),
               SizedBox(height: 20),
               ElevatedButton(
                 onPressed: _savePet,
-                child: Text(_translations!['save_pet']!),
+                child: Text('Save Pet'),
               ),
             ],
           ),

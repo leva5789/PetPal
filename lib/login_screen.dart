@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'registration_screen.dart';
-import 'homepage.dart'; // Az új HomePage importálása
+import 'homepage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'admin_dashboard_screen.dart'; // <-- ÚJ IMPORT
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -31,10 +32,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
     try {
-      DocumentSnapshot doc = await _firestore
-          .collection('translations')
-          .doc(languageCode)
-          .get();
+      DocumentSnapshot doc =
+      await _firestore.collection('translations').doc(languageCode).get();
       if (doc.exists) {
         setState(() {
           _translations = Map<String, String>.from(doc.data() as Map);
@@ -67,27 +66,63 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _loginWithGoogle() async {
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn(clientId: '669877264006-mld2lv5k7te4rjh3a5v74lploogvihk0.apps.googleusercontent.com').signIn();
+      final GoogleSignInAccount? googleUser = await GoogleSignIn(
+        clientId:
+        '669877264006-mld2lv5k7te4rjh3a5v74lploogvihk0.apps.googleusercontent.com',
+      ).signIn();
+
       if (googleUser != null) {
-        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+        final GoogleSignInAuthentication googleAuth =
+        await googleUser.authentication;
 
         final AuthCredential credential = GoogleAuthProvider.credential(
           accessToken: googleAuth.accessToken,
           idToken: googleAuth.idToken,
         );
 
-        UserCredential userCredential = await _auth.signInWithCredential(credential);
+        UserCredential userCredential =
+        await _auth.signInWithCredential(credential);
+        final user = userCredential.user;
+        if (user == null) return;
+
+        // Firestore user doc létrehozása, ha nem létezik
+        final userDocRef = _firestore.collection('users').doc(user.uid);
+        final userDoc = await userDocRef.get();
+
+        if (!userDoc.exists) {
+          await userDocRef.set({
+            'id': user.uid,
+            'fullName': user.displayName ?? '',
+            'username': user.displayName ?? '',
+            'email': user.email ?? '',
+            'profilePictureUrl':
+            user.photoURL ??
+                'https://st3.depositphotos.com/6672868/13701/v/450/depositphotos_137014128-stock-illustration-user-profile-icon.jpg',
+            'isAdmin': false,
+            'isPremium': false,
+          });
+        }
+
+        final data = (await userDocRef.get()).data() as Map<String, dynamic>;
+        final isAdmin = data['isAdmin'] as bool? ?? false;
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => HomePage(currentLanguage: _currentLanguage), // Továbbítja a kiválasztott nyelvet
+            builder: (context) => isAdmin
+                ? const AdminDashboardScreen()
+                : HomePage(currentLanguage: _currentLanguage),
           ),
         );
-
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(translate('google_login_error').replaceAll('\${e.toString()}', e.toString()))),
+        SnackBar(
+          content: Text(
+            translate('google_login_error')
+                .replaceAll('\${e.toString()}', e.toString()),
+          ),
+        ),
       );
     }
   }
@@ -97,30 +132,34 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text;
 
     try {
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      UserCredential userCredential =
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
 
-      // Felhasználó keresése az e-mail cím alapján a Firestore-ban
-      QuerySnapshot userQuery = await _firestore
-          .collection('users')
-          .where('email', isEqualTo: email)
-          .limit(1)
-          .get();
+      final user = userCredential.user;
+      if (user == null) return;
 
-      if (userQuery.docs.isNotEmpty) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => HomePage(currentLanguage: _currentLanguage), // Átirányítás a HomePage-re
-          ),
-        );
-      } else {
+      // Firestore user doc
+      final userDocRef = _firestore.collection('users').doc(user.uid);
+      final userDoc = await userDocRef.get();
+
+      if (!userDoc.exists) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(translate('no_user_data_error'))),
         );
+        return;
       }
+
+      final data = userDoc.data() as Map<String, dynamic>;
+      final isAdmin = data['isAdmin'] as bool? ?? false;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => isAdmin
+              ? const AdminDashboardScreen()
+              : HomePage(currentLanguage: _currentLanguage),
+        ),
+      );
     } on FirebaseAuthException catch (e) {
       String errorMessage;
       switch (e.code) {
@@ -140,14 +179,20 @@ class _LoginScreenState extends State<LoginScreen> {
           errorMessage = translate('too_many_requests_error');
           break;
         default:
-          errorMessage = translate('general_error').replaceAll('\${e.message}', e.message ?? '');
+          errorMessage = translate('general_error')
+              .replaceAll('\${e.message}', e.message ?? '');
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(errorMessage)),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(translate('unexpected_error').replaceAll('\${e.toString()}', e.toString()))),
+        SnackBar(
+          content: Text(
+            translate('unexpected_error')
+                .replaceAll('\${e.toString()}', e.toString()),
+          ),
+        ),
       );
     }
   }
@@ -162,7 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
+      return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(),
         ),
@@ -175,16 +220,17 @@ class _LoginScreenState extends State<LoginScreen> {
         actions: [
           PopupMenuButton<String>(
             onSelected: _changeLanguage,
-            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-              PopupMenuItem<String>(
+            itemBuilder: (BuildContext context) =>
+            <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
                 value: 'en',
                 child: Text('English'),
               ),
-              PopupMenuItem<String>(
+              const PopupMenuItem<String>(
                 value: 'de',
                 child: Text('Deutsch'),
               ),
-              PopupMenuItem<String>(
+              const PopupMenuItem<String>(
                 value: 'hu',
                 child: Text('Magyar'),
               ),
@@ -193,26 +239,28 @@ class _LoginScreenState extends State<LoginScreen> {
         ],
       ),
       body: Padding(
-        padding: EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             TextField(
               controller: _emailController,
-              decoration: InputDecoration(labelText: translate('email_label')),
+              decoration:
+              InputDecoration(labelText: translate('email_label')),
               keyboardType: TextInputType.emailAddress,
             ),
             TextField(
               controller: _passwordController,
-              decoration: InputDecoration(labelText: translate('password_label')),
+              decoration:
+              InputDecoration(labelText: translate('password_label')),
               obscureText: true,
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _login,
               child: Text(translate('login_button')),
             ),
-            SizedBox(height: 10),
+            const SizedBox(height: 10),
             ElevatedButton(
               onPressed: _loginWithGoogle,
               child: Text(translate('google_login_button')),

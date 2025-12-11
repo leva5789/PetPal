@@ -14,20 +14,60 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   final TextEditingController _messageController = TextEditingController();
   final List<Map<String, String>> _messages = [];
-  final String _apiKey = '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';
+
+  bool _isLoadingPremium = true;
+  bool _isPremium = false;
 
   @override
   void initState() {
     super.initState();
-    // Add initial AI message
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      setState(() {
-        _messages.add({
-          'sender': 'ai',
-          'text': 'Szia! Az állattartásban segítek. Használhatod a /addtask parancsot a napi feladatok hozzáadásához. Például: /addtask Kutyasétáltatás 2025-01-03 Rex.',
+    _initPremiumAndWelcome();
+  }
+
+  Future<void> _initPremiumAndWelcome() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        setState(() {
+          _isPremium = false;
+          _isLoadingPremium = false;
         });
+        return;
+      }
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final data = userDoc.data();
+      final isPremium = (data?['isPremium'] as bool?) ?? false;
+
+      setState(() {
+        _isPremium = isPremium;
+        _isLoadingPremium = false;
       });
-    });
+
+      // Ha prémium, akkor ugyanúgy jöhet az első AI üzenet, mint eddig
+      if (isPremium) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() {
+            _messages.add({
+              'sender': 'ai',
+              'text':
+              'Szia! Az állattartásban segítek. Használhatod a /addtask parancsot a napi feladatok hozzáadásához. Például: /addtask Kutyasétáltatás 2025-01-03 Rex.',
+            });
+          });
+        });
+      }
+    } catch (e) {
+      // Hiba esetén inkább letiltjuk a prémium funkciót, hogy ne szálljon el az app
+      setState(() {
+        _isPremium = false;
+        _isLoadingPremium = false;
+      });
+    }
   }
 
   Future<List<String>> _getUserPets() async {
@@ -64,6 +104,7 @@ class _ChatPageState extends State<ChatPage> {
         'completed': false,
       });
 
+      if (!mounted) return;
       setState(() {
         _messages.add({
           'sender': 'ai',
@@ -72,18 +113,27 @@ class _ChatPageState extends State<ChatPage> {
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: Could not add task. Please try again.')),
+        const SnackBar(
+          content: Text('Error: Could not add task. Please try again.'),
+        ),
       );
     }
   }
 
   void _handleCommand(String userMessage) {
     if (userMessage.startsWith('/addtask')) {
-      final parts = userMessage.replaceFirst('/addtask', '').trim().split(RegExp(r'\s+'));
+      final parts = userMessage
+          .replaceFirst('/addtask', '')
+          .trim()
+          .split(RegExp(r'\s+'));
 
       if (parts.length < 3) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: Invalid task format. Use /addtask description YYYY-MM-DD petName.')),
+          const SnackBar(
+            content: Text(
+              'Error: Invalid task format. Use /addtask description YYYY-MM-DD petName.',
+            ),
+          ),
         );
         return;
       }
@@ -104,70 +154,118 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   void _sendMessage() async {
-    if (_messageController.text.isNotEmpty) {
-      final userMessage = _messageController.text;
+    if (_messageController.text.isEmpty) return;
 
-      setState(() {
-        _messages.add({
-          'sender': 'user',
-          'text': userMessage,
-        });
+    final userMessage = _messageController.text;
+
+    setState(() {
+      _messages.add({
+        'sender': 'user',
+        'text': userMessage,
       });
-      _messageController.clear();
+    });
+    _messageController.clear();
 
-      if (userMessage.startsWith('/addtask')) {
-        _handleCommand(userMessage);
-      } else {
-        try {
-          final aiResponse = await _sendMessageToAI(userMessage);
-          setState(() {
-            _messages.add({
-              'sender': 'ai',
-              'text': aiResponse,
-            });
+    if (userMessage.startsWith('/addtask')) {
+      _handleCommand(userMessage);
+    } else {
+      try {
+        final aiResponse = await _sendMessageToAI(userMessage);
+        if (!mounted) return;
+        setState(() {
+          _messages.add({
+            'sender': 'ai',
+            'text': aiResponse,
           });
-        } catch (e) {
-          setState(() {
-            _messages.add({
-              'sender': 'ai',
-              'text': 'Error: Unable to fetch response.',
-            });
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _messages.add({
+            'sender': 'ai',
+            'text': 'Error: Unable to fetch response.',
           });
-        }
+        });
       }
     }
   }
 
+  /// Ezzel hívod most a Firebase Functions-ön keresztül az OpenAI-t
   Future<String> _sendMessageToAI(String userMessage) async {
-    final url = Uri.parse('https://api.openai.com/v1/chat/completions');
-    final headers = {
-      'Content-Type': 'application/json; charset=UTF-8',
-      'Authorization': 'Bearer $_apiKey',
-    };
-    final body = jsonEncode({
-      "model": "gpt-3.5-turbo",
-      "messages": [
-        {"role": "system", "content": "You are a helpful assistant specialized in pet care and solving pet-related problems. Please answer only questions related to pet care."},
-        {"role": "user", "content": userMessage}
-      ]
-    });
+    final url = Uri.parse(
+      'https://petpalchat-md6ydt4via-uc.a.run.app',
+    );
 
-    final response = await http.post(url, headers: headers, body: body);
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode({'message': userMessage}),
+    );
 
     if (response.statusCode == 200) {
       final data = jsonDecode(utf8.decode(response.bodyBytes));
-      return data['choices'][0]['message']['content'];
+      return data['reply'] as String;
     } else {
-      throw Exception('Failed to fetch AI response: ${response.body}');
+      throw Exception(
+        'Failed to fetch AI response: ${response.body}',
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Amíg töltjük, hogy prémium-e:
+    if (_isLoadingPremium) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    // Ha NEM prémium: teljesen fehér képernyő, csak szöveggel
+    if (!_isPremium) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          title: const Text('Chat with AI'),
+        ),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              'Ez a funkció csak a prémium felhasználóknak elérhető.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 18),
+            ),
+          ),
+        ),
+        bottomNavigationBar: Footer(
+          onTabSelected: (index) {
+            if (index == 0) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => HomePage(
+                    currentLanguage: 'hu',
+                  ),
+                ),
+              );
+            }
+          },
+          currentIndex: 1,
+        ),
+      );
+    }
+
+    // Ha prémium: mehet a régi chat UI
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text('Chat with AI'),
+        title: const Text('Chat with AI'),
       ),
       body: Column(
         children: [
@@ -179,10 +277,11 @@ class _ChatPageState extends State<ChatPage> {
                 final message = _messages[index];
                 final isUser = message['sender'] == 'user';
                 return Align(
-                  alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment:
+                  isUser ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
-                    margin: EdgeInsets.symmetric(vertical: 4.0),
-                    padding: EdgeInsets.all(12.0),
+                    margin: const EdgeInsets.symmetric(vertical: 4.0),
+                    padding: const EdgeInsets.all(12.0),
                     decoration: BoxDecoration(
                       color: isUser ? Colors.blue : Colors.grey[300],
                       borderRadius: BorderRadius.circular(8.0),
@@ -211,11 +310,12 @@ class _ChatPageState extends State<ChatPage> {
                         borderRadius: BorderRadius.circular(8.0),
                       ),
                     ),
+                    onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
-                SizedBox(width: 8.0),
+                const SizedBox(width: 8.0),
                 IconButton(
-                  icon: Icon(Icons.send),
+                  icon: const Icon(Icons.send),
                   onPressed: _sendMessage,
                   color: Colors.blue,
                 ),
@@ -229,7 +329,11 @@ class _ChatPageState extends State<ChatPage> {
           if (index == 0) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => HomePage(currentLanguage: 'hu',)),
+              MaterialPageRoute(
+                builder: (context) => HomePage(
+                  currentLanguage: 'hu',
+                ),
+              ),
             );
           }
         },

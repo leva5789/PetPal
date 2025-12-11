@@ -7,7 +7,7 @@ import 'dart:typed_data';
 
 class PetDetailsPage extends StatefulWidget {
   final String petId;
-  final String currentLanguage; // Nyelvi kód
+  final String currentLanguage; // már nem használjuk, de ha máshol kell, maradhat
 
   PetDetailsPage({required this.petId, required this.currentLanguage});
 
@@ -26,54 +26,49 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
 
   bool _isLoading = true;
   String? _imageUrl;
+  String? _breed; // selected breed
   Uint8List? _imageBytes;
-  Map<String, String>? _translations;
+
+  // same list as in NewPetFormPage
+  final List<String> _breedList = const [
+    'Beagle',
+    'Boxer',
+    'Bulldog',
+    'Dachshund',
+    'German Shepherd',
+    'German Shorthaired Pointer',
+    'Golden Retriever',
+    'Labrador Retriever',
+    'Pembroke Welsh Corgi',
+    'Poodle',
+    'Rottweiler',
+    'Shih Tzu',
+    'Siberian Husky',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _loadTranslations();
     _loadPetDetails();
-  }
-
-  Future<void> _loadTranslations() async {
-    DocumentSnapshot translationDoc = await _firestore
-        .collection('translations')
-        .doc(widget.currentLanguage)
-        .get();
-
-    setState(() {
-      _translations = {
-        'pet_details_title': translationDoc['pet_details_title'] ?? 'Pet Details',
-        'upload_image_button': translationDoc['upload_image_button'] ?? 'Upload Image',
-        'name_label': translationDoc['name_label'] ?? 'Name',
-        'dob_label': translationDoc['dob_label'] ?? 'Date of Birth',
-        'weight_label': translationDoc['weight_label'] ?? 'Weight',
-        'save_button': translationDoc['save_button'] ?? 'Save',
-        'delete_button': translationDoc['delete_button'] ?? 'Delete',
-        'pet_not_found': translationDoc['pet_not_found'] ?? 'Pet not found',
-        'error_loading_pet_details': translationDoc['error_loading_pet_details'] ?? 'Error loading pet details: ',
-        'image_uploaded_success': translationDoc['image_uploaded_success'] ?? 'Image uploaded successfully!',
-        'error_uploading_image': translationDoc['error_uploading_image'] ?? 'Error uploading image: ',
-        'pet_updated_success': translationDoc['pet_updated_success'] ?? 'Pet updated successfully!',
-        'error_updating_pet': translationDoc['error_updating_pet'] ?? 'Error updating pet: ',
-        'fill_out_all_fields': translationDoc['fill_out_all_fields'] ?? 'Please fill out all fields',
-        'pet_deleted_success': translationDoc['pet_deleted_success'] ?? 'Pet deleted successfully!',
-        'error_deleting_pet': translationDoc['error_deleting_pet'] ?? 'Error deleting pet: '
-      };
-    });
   }
 
   Future<void> _loadPetDetails() async {
     try {
-      DocumentSnapshot petDoc = await _firestore.collection('pets').doc(widget.petId).get();
+      DocumentSnapshot petDoc =
+      await _firestore.collection('pets').doc(widget.petId).get();
+
       if (petDoc.exists && petDoc.data() != null) {
-        Map<String, dynamic>? petData = petDoc.data() as Map<String, dynamic>?;
+        final petData = petDoc.data() as Map<String, dynamic>;
+
         setState(() {
-          _nameController.text = petData?['name']?.toString() ?? '';
-          _dobController.text = petData?['dob']?.toString() ?? '';
-          _weightController.text = petData?['weight']?.toString() ?? '';
-          _imageUrl = petData?['imageUrl']?.toString();
+          _nameController.text = petData['name']?.toString() ?? '';
+          _dobController.text = petData['dob']?.toString() ?? '';
+          _weightController.text = petData['weight']?.toString() ?? '';
+          // FIGYELEM: itt 'imageUrl'-t olvasunk – ha nálad 'profilePictureUrl',
+          // akkor azt írd ide!
+          _imageUrl = (petData['imageUrl'] ?? petData['profilePictureUrl'])
+              ?.toString();
+          _breed = petData['breed']?.toString();
           _isLoading = false;
         });
       } else {
@@ -81,7 +76,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_translations?['pet_not_found'] ?? 'Pet not found')),
+          const SnackBar(content: Text('Pet not found')),
         );
       }
     } catch (e) {
@@ -89,13 +84,14 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
         _isLoading = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${_translations?['error_loading_pet_details'] ?? 'Error loading pet details:'} $e')),
+        SnackBar(content: Text('Error loading pet details: $e')),
       );
     }
   }
 
   Future<void> _pickImage() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.image);
+    final result =
+    await FilePicker.platform.pickFiles(type: FileType.image);
 
     if (result != null && result.files.single.bytes != null) {
       setState(() {
@@ -109,56 +105,63 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
     if (_imageBytes == null) return;
 
     try {
-      String fileName = '${widget.petId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      Reference storageRef = _storage.ref().child('pet_images/$fileName');
+      final fileName =
+          '${widget.petId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final storageRef = _storage.ref().child('pet_images/$fileName');
 
-      UploadTask uploadTask = storageRef.putData(_imageBytes!);
-      TaskSnapshot taskSnapshot = await uploadTask;
-      String downloadUrl = await taskSnapshot.ref.getDownloadURL();
+      final uploadTask = storageRef.putData(_imageBytes!);
+      final taskSnapshot = await uploadTask;
+      final downloadUrl = await taskSnapshot.ref.getDownloadURL();
 
       setState(() {
         _imageUrl = downloadUrl;
       });
 
-      await _firestore.collection('pets').doc(widget.petId).update({
-        'imageUrl': downloadUrl,
-      });
+      await _firestore
+          .collection('pets')
+          .doc(widget.petId)
+          .update({'imageUrl': downloadUrl});
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_translations?['image_uploaded_success'] ?? 'Image uploaded successfully!')),
+        const SnackBar(content: Text('Image uploaded successfully!')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${_translations?['error_uploading_image'] ?? 'Error uploading image:'} $e')),
+        SnackBar(content: Text('Error uploading image: $e')),
       );
     }
   }
 
   void _updatePet() async {
-    String name = _nameController.text;
-    String dob = _dobController.text;
-    String weight = _weightController.text;
+    final name = _nameController.text.trim();
+    final dob = _dobController.text.trim();
+    final weight = _weightController.text.trim();
 
-    if (name.isNotEmpty && dob.isNotEmpty && weight.isNotEmpty) {
+    if (name.isNotEmpty &&
+        dob.isNotEmpty &&
+        weight.isNotEmpty &&
+        _breed != null &&
+        _breed!.isNotEmpty) {
       try {
         await _firestore.collection('pets').doc(widget.petId).update({
           'name': name,
           'dob': dob,
           'weight': weight,
+          'breed': _breed,
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_translations?['pet_updated_success'] ?? 'Pet updated successfully!')),
+          const SnackBar(content: Text('Pet updated successfully!')),
         );
         Navigator.pop(context);
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${_translations?['error_updating_pet'] ?? 'Error updating pet:'} $e')),
+          SnackBar(content: Text('Error updating pet: $e')),
         );
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_translations?['fill_out_all_fields'] ?? 'Please fill out all fields')),
+        const SnackBar(content: Text('Please fill out all fields')),
       );
     }
   }
@@ -168,30 +171,24 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       await _firestore.collection('pets').doc(widget.petId).delete();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_translations?['pet_deleted_success'] ?? 'Pet deleted successfully!')),
+        const SnackBar(content: Text('Pet deleted successfully!')),
       );
       Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${_translations?['error_deleting_pet'] ?? 'Error deleting pet:'} $e')),
+        SnackBar(content: Text('Error deleting pet: $e')),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_translations == null) {
-      return Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(_translations!['pet_details_title']!),
+        title: const Text('Pet Details'),
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : Padding(
         padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(
@@ -200,47 +197,77 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
               Center(
                 child: CircleAvatar(
                   radius: 60,
-                  backgroundImage: _imageUrl != null && _imageUrl!.isNotEmpty
+                  backgroundImage: _imageUrl != null &&
+                      _imageUrl!.isNotEmpty
                       ? NetworkImage(_imageUrl!)
-                      : NetworkImage('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS3hTQwsrGuYW0XGXbIB4d2noVL1ZhL7llERA&s') as ImageProvider,
+                      : const NetworkImage(
+                    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS3hTQwsrGuYW0XGXbIB4d2noVL1ZhL7llERA&s',
+                  ) as ImageProvider,
                 ),
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
               ElevatedButton(
                 onPressed: _pickImage,
-                child: Text(_translations!['upload_image_button']!),
+                child: const Text('Upload Image'),
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               TextField(
                 controller: _nameController,
-                decoration: InputDecoration(labelText: _translations!['name_label']),
+                decoration:
+                const InputDecoration(labelText: 'Name'),
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
               TextField(
                 controller: _dobController,
-                decoration: InputDecoration(labelText: _translations!['dob_label']),
+                decoration: const InputDecoration(
+                    labelText: 'Date of Birth'),
                 keyboardType: TextInputType.datetime,
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
               TextField(
                 controller: _weightController,
-                decoration: InputDecoration(labelText: _translations!['weight_label']),
+                decoration:
+                const InputDecoration(labelText: 'Weight'),
                 keyboardType: TextInputType.number,
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
+
+              // Breed dropdown
+              DropdownButtonFormField<String>(
+                decoration:
+                const InputDecoration(labelText: 'Breed'),
+                value: _breed != null &&
+                    _breedList.contains(_breed)
+                    ? _breed
+                    : null,
+                items: _breedList.map((breed) {
+                  return DropdownMenuItem(
+                    value: breed,
+                    child: Text(breed),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _breed = value;
+                  });
+                },
+              ),
+
+              const SizedBox(height: 20),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                mainAxisAlignment:
+                MainAxisAlignment.spaceEvenly,
                 children: [
                   ElevatedButton(
                     onPressed: _updatePet,
-                    child: Text(_translations!['save_button']!),
+                    child: const Text('Save'),
                   ),
                   ElevatedButton(
                     onPressed: _deletePet,
-                    child: Text(_translations!['delete_button']!),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red,
                     ),
+                    child: const Text('Delete'),
                   ),
                 ],
               ),

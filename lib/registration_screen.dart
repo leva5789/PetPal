@@ -7,7 +7,10 @@ class RegistrationScreen extends StatefulWidget {
   final Map<String, String> translations;
   final String currentLanguage;
 
-  RegistrationScreen({required this.translations, required this.currentLanguage});
+  RegistrationScreen({
+    required this.translations,
+    required this.currentLanguage,
+  });
 
   @override
   _RegistrationScreenState createState() => _RegistrationScreenState();
@@ -18,7 +21,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+  TextEditingController();
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -52,20 +56,23 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     }
 
     try {
-      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+      UserCredential userCredential =
+      await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       String userId = userCredential.user!.uid;
 
-      // Automatikus dokumentumazonosító létrehozása a .add() metódussal, alapértelmezett profilképpel
-      await _firestore.collection('users').add({
+      await _firestore.collection('users').doc(userId).set({
         'id': userId,
         'fullName': fullName,
         'username': username,
         'email': email,
-        'profilePictureUrl': 'https://st3.depositphotos.com/6672868/13701/v/450/depositphotos_137014128-stock-illustration-user-profile-icon.jpg', // Alapértelmezett kép URL
+        'profilePictureUrl':
+        'https://st3.depositphotos.com/6672868/13701/v/450/depositphotos_137014128-stock-illustration-user-profile-icon.jpg',
+        'isAdmin': false,   // <- új mező, kézzel tudsz majd true-t állítani egyes felhasználóknál
+        'isPremium': false, // <- új mező, később használható
       });
 
       Navigator.pushReplacement(
@@ -81,7 +88,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       } else if (e.code == 'invalid-email') {
         errorMessage = translate("invalid_email");
       } else {
-        errorMessage = translate("registration_error").replaceAll('\${e.toString()}', e.toString());
+        errorMessage = translate("registration_error")
+            .replaceAll('\${e.toString()}', e.toString());
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -89,12 +97,15 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(translate("registration_error").replaceAll('\${e.toString()}', e.toString()))),
+        SnackBar(
+          content: Text(
+            translate("registration_error")
+                .replaceAll('\${e.toString()}', e.toString()),
+          ),
+        ),
       );
     }
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -103,34 +114,44 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         title: Text(translate('register_button')),
       ),
       body: Padding(
-        padding: EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             TextField(
               controller: _fullNameController,
-              decoration: InputDecoration(labelText: translate('full_name_label')),
+              decoration: InputDecoration(
+                labelText: translate('full_name_label'),
+              ),
             ),
             TextField(
               controller: _usernameController,
-              decoration: InputDecoration(labelText: translate('username_label')),
+              decoration: InputDecoration(
+                labelText: translate('username_label'),
+              ),
             ),
             TextField(
               controller: _emailController,
-              decoration: InputDecoration(labelText: translate('email_label')),
+              decoration: InputDecoration(
+                labelText: translate('email_label'),
+              ),
               keyboardType: TextInputType.emailAddress,
             ),
             TextField(
               controller: _passwordController,
-              decoration: InputDecoration(labelText: translate('password_label')),
+              decoration: InputDecoration(
+                labelText: translate('password_label'),
+              ),
               obscureText: true,
             ),
             TextField(
               controller: _confirmPasswordController,
-              decoration: InputDecoration(labelText: translate('confirm_password_label')),
+              decoration: InputDecoration(
+                labelText: translate('confirm_password_label'),
+              ),
               obscureText: true,
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _register,
               child: Text(translate('register_button')),

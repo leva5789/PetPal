@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
+
 import 'package:petpal/new_pet_form_page.dart';
 import 'package:petpal/new_task_form_page.dart';
 import 'package:petpal/pet_details_page.dart';
@@ -37,7 +37,8 @@ class _HomePageState extends State<HomePage> {
       if (userQuery.docs.isNotEmpty) {
         DocumentSnapshot userDoc = userQuery.docs.first;
         String fullName = (userDoc['fullName'] as String?) ?? 'N/A';
-        String profilePictureUrl = (userDoc['profilePictureUrl'] as String?) ?? '';
+        String profilePictureUrl =
+            (userDoc['profilePictureUrl'] as String?) ?? '';
 
         DocumentSnapshot translationDoc = await _firestore
             .collection('translations')
@@ -76,7 +77,9 @@ class _HomePageState extends State<HomePage> {
           .where('userId', isEqualTo: user.uid)
           .get();
 
-      return petQuery.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+      return petQuery.docs
+          .map((doc) => doc.data() as Map<String, dynamic>)
+          .toList();
     }
     return [];
   }
@@ -114,32 +117,37 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       CircleAvatar(
                         radius: 40,
-                        backgroundImage: userData['profilePictureUrl']!.isNotEmpty
+                        backgroundImage:
+                        userData['profilePictureUrl']!.isNotEmpty
                             ? NetworkImage(userData['profilePictureUrl']!)
-                            : AssetImage('assets/placeholder.png') as ImageProvider,
+                            : const AssetImage('assets/placeholder.png')
+                        as ImageProvider,
                       ),
-                      SizedBox(width: 16),
+                      const SizedBox(width: 16),
                       Text(
                         userData['fullName']!,
-                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         userData['favoritesLabel']!,
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                       IconButton(
-                        icon: Icon(Icons.add),
+                        icon: const Icon(Icons.add),
                         onPressed: () async {
                           await Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => NewPetFormPage(currentLanguage: widget.currentLanguage),
+                              builder: (context) => NewPetFormPage(
+                                  currentLanguage: widget.currentLanguage),
                             ),
                           );
                           _refreshData();
@@ -147,20 +155,20 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ],
                   ),
-                  SizedBox(height: 20),
-                  FutureBuilder<List<Map<String, dynamic>>>(
+                  const SizedBox(height: 20),
+                  FutureBuilder<List<Map<String, dynamic>>>( // Petek listázása
                     future: _getUserPets(),
                     builder: (context, petSnapshot) {
                       if (petSnapshot.connectionState == ConnectionState.waiting) {
-                        return Center(child: CircularProgressIndicator());
+                        return const Center(child: CircularProgressIndicator());
                       } else if (petSnapshot.hasError) {
-                        return Center(child: Text('Error loading pets'));
+                        return const Center(child: Text('Error loading pets'));
                       } else {
                         final pets = petSnapshot.data ?? [];
                         return pets.isEmpty
-                            ? Text('No pets found')
-                            : Container(
-                          height: 120,
+                            ? const Text('No pets found')
+                            : SizedBox(
+                          height: 140,
                           child: ListView.builder(
                             scrollDirection: Axis.horizontal,
                             itemCount: pets.length,
@@ -168,8 +176,11 @@ class _HomePageState extends State<HomePage> {
                               final pet = pets[index];
                               final petId = pet['id'] ?? '';
 
-                              return petId.isNotEmpty
-                                  ? GestureDetector(
+                              if (petId.isEmpty) {
+                                return const Text('Invalid pet data');
+                              }
+
+                              return GestureDetector(
                                 onTap: () async {
                                   await Navigator.push(
                                     context,
@@ -186,39 +197,36 @@ class _HomePageState extends State<HomePage> {
                                   padding: const EdgeInsets.symmetric(horizontal: 8.0),
                                   child: Column(
                                     children: [
-                                      CircleAvatar(
-                                        radius: 40,
-                                        backgroundImage: NetworkImage(
-                                          pet['profilePictureUrl'] ??
-                                              'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS3hTQwsrGuYW0XGXbIB4d2noVL1ZhL7llERA&s',
-                                        ),
-                                      ),
-                                      SizedBox(height: 8),
+                                      PetImage(pet: pet),
+                                      const SizedBox(height: 8),
                                       Text(
                                         pet['name'] ?? 'Unnamed',
-                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ],
                                   ),
                                 ),
-                              )
-                                  : Text('Invalid pet data');
+                              );
                             },
                           ),
                         );
                       }
                     },
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         userData['dailyTaskLabel']!,
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                       IconButton(
-                        icon: Icon(Icons.add),
+                        icon: const Icon(Icons.add),
                         onPressed: () async {
                           await Navigator.push(
                             context,
@@ -231,7 +239,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ],
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   Expanded(
                     child: DailyTasksList(),
                   ),
@@ -258,3 +266,26 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
+
+class PetImage extends StatelessWidget {
+  final Map<String, dynamic> pet;
+
+  const PetImage({required this.pet});
+
+  @override
+  Widget build(BuildContext context) {
+    // Nincs szükség a breed nevére, minden esetben az ugyanazt a fallback képet fogjuk használni
+    return SizedBox(
+      width: 80,
+      height: 80,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(40),
+        child: Image.network(
+          'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS3hTQwsrGuYW0XGXbIB4d2noVL1ZhL7llERA&s',
+          fit: BoxFit.cover,
+        ),
+      ),
+    );
+  }
+}
+
