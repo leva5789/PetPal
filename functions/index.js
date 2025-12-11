@@ -2,7 +2,7 @@ const functions = require("firebase-functions");
 const axios = require("axios");
 
 // IDE ÍRD BE AZ ÚJ OPENAI KULCSOT (vagy használd functions.config()-ot)
-const OPENAI_KEY = "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";
+const OPENAI_KEY = "";
 
 // Kategória kulcsok, amikkel dolgozunk
 const CATEGORY_KEYS = [
