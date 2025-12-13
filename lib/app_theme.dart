@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // Limezöld, tetszés szerint finomhangolhatod
+
   static const Color lime = Color(0xFF32CD32);
 
   static ThemeData lightTheme = ThemeData(
@@ -14,7 +14,7 @@ class AppTheme {
       brightness: Brightness.light,
     ),
 
-    // AppBar: limezöld háttér, fehér szöveg
+
     appBarTheme: const AppBarTheme(
       backgroundColor: lime,
       foregroundColor: Colors.white,
@@ -22,7 +22,7 @@ class AppTheme {
       centerTitle: true,
     ),
 
-    // Kártyák: fehér háttér, vékony fekete körvonal
+
     cardTheme: CardTheme(
       color: Colors.white,
       elevation: 0,
@@ -33,7 +33,7 @@ class AppTheme {
       ),
     ),
 
-    // Fő gombok: limezöld, fehér szöveg, "kör" (pille) alak
+
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: lime,
@@ -46,7 +46,7 @@ class AppTheme {
       ),
     ),
 
-    // Másodlagos / törlés / mégse gomb: fehér, halvány körvonal, pille alak
+
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         backgroundColor: Colors.white,
@@ -60,7 +60,7 @@ class AppTheme {
       ),
     ),
 
-    // Beviteli mezők: fókuszban limezöld keret
+
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: Colors.white,
@@ -79,7 +79,7 @@ class AppTheme {
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     ),
 
-    // Alsó navigáció (ha BottomNavigationBar-t használsz)
+
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: lime,
       selectedItemColor: Colors.white,

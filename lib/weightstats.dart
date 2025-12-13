@@ -47,7 +47,8 @@ class _WeightStatsPageState extends State<WeightStatsPage> {
           final date = (data['date'] as Timestamp).toDate();
           final weight = double.tryParse(data['weight'].toString()) ?? 0.0;
 
-          _dates.add(DateFormat('MM-dd').format(date)); // Only display MM-dd format
+          _dates.add(DateFormat('MM-dd').format(date));
+
           _weightData.add(FlSpot(_dates.length.toDouble(), weight));
         });
       });
@@ -83,7 +84,7 @@ class _WeightStatsPageState extends State<WeightStatsPage> {
       await _firestore
           .collection('pets')
           .doc(widget.petId)
-          .update({'weight': parsedWeight}); // Update the current weight
+          .update({'weight': parsedWeight});
 
       _weightController.clear();
       _fetchWeightData();
@@ -143,7 +144,7 @@ class _WeightStatsPageState extends State<WeightStatsPage> {
                         }
                         return '';
                       },
-                      rotateAngle: 0, // Make labels horizontal
+                      rotateAngle: 0,
                     ),
                   ),
                   borderData: FlBorderData(show: true),

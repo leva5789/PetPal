@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'registration_screen.dart';
 import 'homepage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'admin_dashboard_screen.dart'; // <-- ÚJ IMPORT
+import 'admin_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -85,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
         final user = userCredential.user;
         if (user == null) return;
 
-        // Firestore user doc létrehozása, ha nem létezik
+
         final userDocRef = _firestore.collection('users').doc(user.uid);
         final userDoc = await userDocRef.get();
 
@@ -138,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = userCredential.user;
       if (user == null) return;
 
-      // Firestore user doc
+
       final userDocRef = _firestore.collection('users').doc(user.uid);
       final userDoc = await userDocRef.get();
 

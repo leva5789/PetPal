@@ -1,8 +1,9 @@
 const functions = require("firebase-functions");
 const axios = require("axios");
 
-// IDE ÍRD BE AZ ÚJ OPENAI KULCSOT (vagy használd functions.config()-ot)
-const OPENAI_KEY = "";
+
+const OPENAI_KEY = functions.config().openai.key;
+
 
 // Kategória kulcsok, amikkel dolgozunk
 const CATEGORY_KEYS = [
@@ -21,7 +22,7 @@ const CATEGORY_KEYS = [
   "not_understood",    // értelmezhetetlen / random szöveg
 ];
 
-// EREDTI CHAT FUNKCIÓD - ezt hagyom érintetlenül ------------------------
+
 exports.petpalChat = functions.https.onRequest(async (req, res) => {
   // CORS
   res.set("Access-Control-Allow-Origin", "*");
@@ -81,7 +82,7 @@ exports.petpalChat = functions.https.onRequest(async (req, res) => {
   }
 });
 
-// ÚJ: TASK KATEGORIZÁLÓ FUNKCIÓ ----------------------------------------
+
 exports.categorizeTask = functions.https.onRequest(async (req, res) => {
   // CORS
   res.set("Access-Control-Allow-Origin", "*");
@@ -161,7 +162,7 @@ Description: "${description}"
       openaiRes.data?.choices?.[0]?.message?.content?.trim().toLowerCase() ||
       "not_understood";
 
-    // Biztosítsuk, hogy csak az engedélyezett kulcsok egyike legyen
+
     if (!CATEGORY_KEYS.includes(category)) {
       console.warn("Model returned unknown category:", category);
       category = "not_understood";
@@ -174,7 +175,7 @@ Description: "${description}"
 
     console.error("OpenAI categorizeTask error:", data);
 
-    // Hiba esetén inkább not_understood-öt adunk vissza
+
     res.status(status).json({
       error: "OpenAI categorizeTask failed",
       details: data,

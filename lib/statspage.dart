@@ -26,7 +26,7 @@ class _StatsPageState extends State<StatsPage> {
           .toList();
 
       for (var pet in pets) {
-        // Validate and process pet data
+
         final petName = pet['name'] ?? 'Unnamed';
         final petWeight = double.tryParse(pet['weight']?.toString() ?? '0') ?? 0.0;
         final petPicture = pet['profilePictureUrl'] ?? 'https://via.placeholder.com/150';
@@ -35,7 +35,7 @@ class _StatsPageState extends State<StatsPage> {
         pet['weight'] = petWeight;
         pet['profilePictureUrl'] = petPicture;
 
-        // Fetch tasks for the pet
+
         QuerySnapshot taskQuery = await _firestore
             .collection('tasks')
             .where('userId', isEqualTo: user.uid)
@@ -58,7 +58,7 @@ class _StatsPageState extends State<StatsPage> {
   }
 
   void _refreshPage() {
-    setState(() {}); // Triggers a rebuild and reloads the FutureBuilder
+    setState(() {});
   }
 
   @override
@@ -129,7 +129,7 @@ class _StatsPageState extends State<StatsPage> {
       bottomNavigationBar: Footer(
         onTabSelected: (index) {
           if (index == 0) {
-            Navigator.pop(context); // Navigate back to HomePage
+            Navigator.pop(context);
           }
         },
         currentIndex: 2,

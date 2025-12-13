@@ -26,10 +26,10 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
 
   bool _isLoading = true;
   String? _imageUrl;
-  String? _breed; // selected breed
+  String? _breed;
   Uint8List? _imageBytes;
 
-  // same list as in NewPetFormPage
+
   final List<String> _breedList = const [
     'Beagle',
     'Boxer',
@@ -64,8 +64,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
           _nameController.text = petData['name']?.toString() ?? '';
           _dobController.text = petData['dob']?.toString() ?? '';
           _weightController.text = petData['weight']?.toString() ?? '';
-          // FIGYELEM: itt 'imageUrl'-t olvasunk – ha nálad 'profilePictureUrl',
-          // akkor azt írd ide!
+
           _imageUrl = (petData['imageUrl'] ?? petData['profilePictureUrl'])
               ?.toString();
           _breed = petData['breed']?.toString();
@@ -232,7 +231,8 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
               ),
               const SizedBox(height: 20),
 
-              // Breed dropdown
+
+
               DropdownButtonFormField<String>(
                 decoration:
                 const InputDecoration(labelText: 'Breed'),

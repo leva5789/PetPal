@@ -30,7 +30,7 @@ class _NewPetFormPageState extends State<NewPetFormPage> {
     'German Shorthaired Pointer', 'Golden Retriever', 'Labrador Retriever',
     'Pembroke Welsh Corgi', 'Poodle', 'Rottweiler', 'Shih Tzu',
     'Siberian Husky'
-  ]; // Manually defined list of breeds
+  ];
 
   @override
   void initState() {
@@ -129,7 +129,7 @@ class _NewPetFormPageState extends State<NewPetFormPage> {
               SizedBox(height: 10),
               ElevatedButton(
                 onPressed: () {
-                  // Placeholder for image upload functionality
+
                 },
                 child: Text('Upload Image'),
               ),

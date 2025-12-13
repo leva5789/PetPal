@@ -71,8 +71,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         'email': email,
         'profilePictureUrl':
         'https://st3.depositphotos.com/6672868/13701/v/450/depositphotos_137014128-stock-illustration-user-profile-icon.jpg',
-        'isAdmin': false,   // <- új mező, kézzel tudsz majd true-t állítani egyes felhasználóknál
-        'isPremium': false, // <- új mező, később használható
+        'isAdmin': false,
+        'isPremium': false,
       });
 
       Navigator.pushReplacement(

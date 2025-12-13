@@ -274,7 +274,7 @@ class PetImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Nincs szükség a breed nevére, minden esetben az ugyanazt a fallback képet fogjuk használni
+    
     return SizedBox(
       width: 80,
       height: 80,

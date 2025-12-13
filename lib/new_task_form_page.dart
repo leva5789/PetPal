@@ -74,7 +74,7 @@ class _NewTaskFormPageState extends State<NewTaskFormPage> {
       await _firestore.collection('tasks').add({
         'userId': user.uid,
         'description': description,
-        'type': type, // ⬅️ AI által adott kategória
+        'type': type,
         'date': _selectedDate,
         'petName': _selectedPet,
         'completed': false,

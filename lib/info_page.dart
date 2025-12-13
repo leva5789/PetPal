@@ -285,7 +285,7 @@ class _InfoPageState extends State<InfoPage> {
           'It looks like you haven\'t $phrase $overduePet for about $bestOverdueDaysSince days – today could be a great day to do it. 🐾';
         }
       } else {
-        // nincs elmaradás → dicséret
+
         String? bestPet;
         String? bestType;
         _ActivityStats? bestStats;

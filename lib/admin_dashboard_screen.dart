@@ -118,7 +118,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     if (confirm != true) return;
 
-    // 1) töröljük a pets doksikat
+
     final petsSnapshot = await _firestore
         .collection('pets')
         .where('userId', isEqualTo: userId)
@@ -128,10 +128,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       await doc.reference.delete();
     }
 
-    // 2) töröljük a user doksit
+
     await _firestore.collection('users').doc(userId).delete();
 
-    // 3) Firebase Auth user törléshez külön Cloud Function kellene (admin SDK)
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('User and pets deleted from Firestore.'),

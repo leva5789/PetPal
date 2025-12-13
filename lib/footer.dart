@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'chat.dart';
 import 'statspage.dart';
-import 'info_page.dart'; // ⬅️ ÚJ IMPORT
+import 'info_page.dart';
 
 class Footer extends StatelessWidget {
   final Function(int) onTabSelected;
@@ -38,7 +38,7 @@ class Footer extends StatelessWidget {
             label: '',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.book), // ⬅️ KÖNYV IKON
+            icon: Icon(Icons.book),
             label: '',
           ),
         ],

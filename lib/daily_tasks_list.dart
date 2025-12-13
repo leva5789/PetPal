@@ -22,11 +22,11 @@ class _DailyTasksListState extends State<DailyTasksList> {
 
       final List<Map<String, dynamic>> tasks = taskQuery.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id; // Add document ID for easy reference
+        data['id'] = doc.id;
         return data;
       }).toList();
 
-      // Filter tasks to only include those with the current date
+
       DateTime currentDate = DateTime.now();
       tasks.retainWhere((task) {
         DateTime taskDate = (task['date'] as Timestamp).toDate();
@@ -41,7 +41,7 @@ class _DailyTasksListState extends State<DailyTasksList> {
 
   void _updateTaskCompletion(String taskId, bool isCompleted) async {
     await _firestore.collection('tasks').doc(taskId).update({'completed': isCompleted});
-    setState(() {}); // Refresh UI after updating
+    setState(() {});
   }
 
   @override
@@ -90,7 +90,7 @@ class _DailyTasksListState extends State<DailyTasksList> {
                         '${date.month}-${date.day} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
 
                     return task['completed'] == true
-                        ? Container() // Hide completed task
+                        ? Container()
                         : Card(
                       margin: EdgeInsets.symmetric(vertical: 8),
                       child: Padding(

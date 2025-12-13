@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'new_pet_form_page.dart'; // Import NewPetFormPage
-import 'pet_details_page.dart'; // Import PetDetailsPage
-import 'new_task_form_page.dart'; // Import NewTaskFormPage
+import 'new_pet_form_page.dart';
+import 'pet_details_page.dart';
+import 'new_task_form_page.dart';
 import 'package:intl/intl.dart';
 
 class HomePage extends StatefulWidget {
-  final String currentLanguage; // Language code
+  final String currentLanguage;
 
   HomePage({required this.currentLanguage});
 
@@ -34,7 +34,7 @@ class _HomePageState extends State<HomePage> {
         String fullName = (userDoc['fullName'] as String?) ?? 'N/A';
         String profilePictureUrl = (userDoc['profilePictureUrl'] as String?) ?? '';
 
-        // Fetch translations based on the selected language
+
         DocumentSnapshot translationDoc = await _firestore
             .collection('translations')
             .doc(widget.currentLanguage)
@@ -87,11 +87,11 @@ class _HomePageState extends State<HomePage> {
 
       final List<Map<String, dynamic>> tasks = taskQuery.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id; // Add document ID for easy reference
+        data['id'] = doc.id;
         return data;
       }).toList();
 
-      // Filter tasks to only include those with the current date
+
       DateTime currentDate = DateTime.now();
       tasks.retainWhere((task) {
         DateTime taskDate = (task['date'] as Timestamp).toDate();
@@ -105,7 +105,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _refreshData() {
-    setState(() {}); // Rebuilds the widget to refresh FutureBuilder
+    setState(() {});
   }
 
   void _updateTaskCompletion(String taskId, bool isCompleted) async {
@@ -170,7 +170,7 @@ class _HomePageState extends State<HomePage> {
                               builder: (context) => NewPetFormPage(currentLanguage: widget.currentLanguage),
                             ),
                           );
-                          _refreshData(); // Refresh after returning
+                          _refreshData();
                         },
                       ),
                     ],
@@ -205,7 +205,7 @@ class _HomePageState extends State<HomePage> {
                                       builder: (context) => PetDetailsPage(petId: petId),
                                     ),
                                   );
-                                  _refreshData(); // Refresh after returning
+                                  _refreshData();
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -248,7 +248,7 @@ class _HomePageState extends State<HomePage> {
                               builder: (context) => NewTaskFormPage(),
                             ),
                           );
-                          _refreshData(); // Refresh after returning
+                          _refreshData();
                         },
                       ),
                     ],
