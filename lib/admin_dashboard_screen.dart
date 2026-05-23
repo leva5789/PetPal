@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'app_toast.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -12,11 +14,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Future<void> _editUserDialog(
-      String userId,
-      String currentUsername,
-      String currentEmail,
-      bool isPremium,
-      ) async {
+    String userId,
+    String currentUsername,
+    String currentEmail,
+    bool isPremium,
+  ) async {
     final usernameController = TextEditingController(text: currentUsername);
     final emailController = TextEditingController(text: currentEmail);
     bool premiumValue = isPremium;
@@ -61,8 +63,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const SizedBox(height: 8),
               const Text(
                 'Note: This changes Firestore fields.\n'
-                    'Updating Firebase Auth email / deleting auth accounts\n'
-                    'should be done via a secure Cloud Function.',
+                'Updating Firebase Auth email / deleting auth accounts\n'
+                'should be done via a secure Cloud Function.',
                 style: TextStyle(fontSize: 11, color: Colors.grey),
               ),
             ],
@@ -100,7 +102,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: const Text('Delete user'),
         content: const Text(
           'Are you sure you want to delete this user and all their pets?\n'
-              'This action cannot be undone.',
+          'This action cannot be undone.',
         ),
         actions: [
           TextButton(
@@ -118,25 +120,56 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     if (confirm != true) return;
 
+    try {
+      final batch = _firestore.batch();
 
-    final petsSnapshot = await _firestore
-        .collection('pets')
-        .where('userId', isEqualTo: userId)
-        .get();
+      final tasksQuery = await _firestore
+          .collection('tasks')
+          .where('userId', isEqualTo: userId)
+          .get();
+      for (final doc in tasksQuery.docs) {
+        batch.delete(doc.reference);
+      }
 
-    for (final doc in petsSnapshot.docs) {
-      await doc.reference.delete();
+      final petsSnapshot = await _firestore
+          .collection('pets')
+          .where('userId', isEqualTo: userId)
+          .get();
+
+      for (final petDoc in petsSnapshot.docs) {
+        final petData = petDoc.data();
+
+        final weightHistoryQuery =
+            await petDoc.reference.collection('weightHistory').get();
+        for (final whDoc in weightHistoryQuery.docs) {
+          batch.delete(whDoc.reference);
+        }
+
+        batch.delete(petDoc.reference);
+
+        final imageUrl =
+            (petData['imageUrl'] ?? petData['profilePictureUrl']) as String?;
+        if (imageUrl != null &&
+            imageUrl.isNotEmpty &&
+            imageUrl.contains('firebase_storage')) {
+          try {
+            await FirebaseStorage.instance.refFromURL(imageUrl).delete();
+          } catch (e) {
+            debugPrint('Error deleting pet image: $e');
+          }
+        }
+      }
+
+      batch.delete(_firestore.collection('users').doc(userId));
+
+      await batch.commit();
+
+      if (!mounted) return;
+      AppToast.success(context, 'User and all data deleted');
+    } catch (e) {
+      if (!mounted) return;
+      AppToast.error(context, 'Failed to delete user');
     }
-
-
-    await _firestore.collection('users').doc(userId).delete();
-
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('User and pets deleted from Firestore.'),
-      ),
-    );
   }
 
   @override
@@ -195,7 +228,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ],
                   ),
                   children: [
-                    // PETA LISTA
                     FutureBuilder<QuerySnapshot>(
                       future: _firestore
                           .collection('pets')
@@ -237,7 +269,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             ),
                             ...pets.map((petDoc) {
                               final petData =
-                              petDoc.data() as Map<String, dynamic>;
+                                  petDoc.data() as Map<String, dynamic>;
                               final petName =
                                   petData['name']?.toString() ?? 'Unnamed pet';
                               final petBreed =
@@ -249,7 +281,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   petBreed.isNotEmpty ? petBreed : 'No breed',
                                 ),
                                 trailing: IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  icon: const Icon(Icons.delete,
+                                      color: Colors.red),
                                   onPressed: () async {
                                     await petDoc.reference.delete();
                                   },
@@ -260,7 +293,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         );
                       },
                     ),
-
                     const Divider(),
                     ButtonBar(
                       children: [

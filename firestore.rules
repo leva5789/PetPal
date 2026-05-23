@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Allow public read access to translations (needed for Login Screen)
+    match /translations/{lang} {
+      allow read: if true;
+      allow write: if request.auth != null; // Only admins/auth users can edit
+    }
+
+    match /pets/{petId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+      
+      match /{document=**} {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Default rule: Allow authenticated users to access everything else
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

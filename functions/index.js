@@ -1,9 +1,9 @@
 const functions = require("firebase-functions");
 const axios = require("axios");
+const cors = require("cors")({ origin: true }); // Automatically allow all origins
+const admin = require("firebase-admin");
 
-
-const OPENAI_KEY = functions.config().openai.key;
-
+admin.initializeApp();
 
 // Kategória kulcsok, amikkel dolgozunk
 const CATEGORY_KEYS = [
@@ -22,91 +22,76 @@ const CATEGORY_KEYS = [
   "not_understood",    // értelmezhetetlen / random szöveg
 ];
 
-
-exports.petpalChat = functions.https.onRequest(async (req, res) => {
-  // CORS
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Headers", "Content-Type");
-
-  if (req.method === "OPTIONS") {
-    res.status(204).send("");
-    return;
-  }
-
-  try {
-    const userMessage = req.body.message;
-    if (!userMessage || typeof userMessage !== "string") {
-      res.status(400).json({ error: "Missing or invalid 'message' field" });
-      return;
-    }
-
-    if (!OPENAI_KEY) {
-      console.error("Missing OpenAI key in code");
-      res.status(500).json({ error: "Server config error: missing OpenAI key" });
-      return;
-    }
-
-    const openaiRes = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        model: "gpt-4.1-mini",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a helpful assistant specialized in pet care and solving pet-related problems. Please answer only questions related to pet care.",
-          },
-          { role: "user", content: userMessage },
-        ],
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${OPENAI_KEY}`,
-        },
+exports.petpalChat = functions.https.onRequest((req, res) => {
+  return cors(req, res, async () => {
+    try {
+      const userMessage = req.body.message;
+      if (!userMessage || typeof userMessage !== "string") {
+        res.status(400).json({ error: "Missing or invalid 'message' field" });
+        return;
       }
-    );
 
-    const aiText = openaiRes.data.choices?.[0]?.message?.content || "";
-    res.status(200).json({ reply: aiText });
-  } catch (err) {
-    const status = err.response?.status || 500;
-    const data = err.response?.data || err.message || String(err);
+      // TODO: Move to Google Secret Manager for production security
+      const OPENAI_KEY = process.env.OPENAI_API_KEY || "YOUR_OPENAI_API_KEY_HERE";
+      if (!OPENAI_KEY) {
+        console.error("Missing OpenAI key in code");
+        res.status(500).json({ error: "Server config error: missing OpenAI key" });
+        return;
+      }
 
-    console.error("OpenAI error:", data);
+      const openaiRes = await axios.post(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          model: "gpt-4.1-mini",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a helpful assistant specialized in pet care and solving pet-related problems. Please answer only questions related to pet care.",
+            },
+            { role: "user", content: userMessage },
+          ],
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${OPENAI_KEY}`,
+          },
+        }
+      );
 
-    res.status(status).json({
-      error: "OpenAI request failed",
-      details: data,
-    });
-  }
+      const aiText = openaiRes.data.choices?.[0]?.message?.content || "";
+      res.status(200).json({ reply: aiText });
+    } catch (err) {
+      const status = err.response?.status || 500;
+      const data = err.response?.data || err.message || String(err);
+      console.error("OpenAI error:", data);
+      res.status(status).json({
+        error: "OpenAI request failed",
+        details: data,
+      });
+    }
+  });
 });
 
+exports.categorizeTask = functions.https.onRequest((req, res) => {
+  return cors(req, res, async () => {
+    try {
+      const description = req.body.description;
+      if (!description || typeof description !== "string") {
+        res.status(400).json({ error: "Missing or invalid 'description' field" });
+        return;
+      }
 
-exports.categorizeTask = functions.https.onRequest(async (req, res) => {
-  // CORS
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Headers", "Content-Type");
+      // TODO: Move to Google Secret Manager for production security
+      const OPENAI_KEY = process.env.OPENAI_API_KEY || "YOUR_OPENAI_API_KEY_HERE";
+      if (!OPENAI_KEY) {
+        console.error("Missing OpenAI key in code");
+        res.status(500).json({ error: "Server config error: missing OpenAI key" });
+        return;
+      }
 
-  if (req.method === "OPTIONS") {
-    res.status(204).send("");
-    return;
-  }
-
-  try {
-    const description = req.body.description;
-    if (!description || typeof description !== "string") {
-      res.status(400).json({ error: "Missing or invalid 'description' field" });
-      return;
-    }
-
-    if (!OPENAI_KEY) {
-      console.error("Missing OpenAI key in code");
-      res.status(500).json({ error: "Server config error: missing OpenAI key" });
-      return;
-    }
-
-    const prompt = `
+      const prompt = `
 You are a classifier for dog-care tasks.
 
 You receive a short Hungarian or English description about a dog-related task.
@@ -134,52 +119,143 @@ Rules:
 Description: "${description}"
 `;
 
-    const openaiRes = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        model: "gpt-4.1-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are a strict JSON-free classifier. You answer with one category key only.",
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature: 0, // determinisztikusabb
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${OPENAI_KEY}`,
+      const openaiRes = await axios.post(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          model: "gpt-4.1-mini",
+          messages: [
+            {
+              role: "system",
+              content: "You are a strict JSON-free classifier. You answer with one category key only.",
+            },
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          temperature: 0,
         },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${OPENAI_KEY}`,
+          },
+        }
+      );
+
+      let category =
+        openaiRes.data?.choices?.[0]?.message?.content?.trim().toLowerCase() ||
+        "not_understood";
+
+      if (!CATEGORY_KEYS.includes(category)) {
+        console.warn("Model returned unknown category:", category);
+        category = "not_understood";
       }
-    );
 
-    let category =
-      openaiRes.data?.choices?.[0]?.message?.content?.trim().toLowerCase() ||
-      "not_understood";
-
-
-    if (!CATEGORY_KEYS.includes(category)) {
-      console.warn("Model returned unknown category:", category);
-      category = "not_understood";
+      res.status(200).json({ category });
+    } catch (err) {
+      const status = err.response?.status || 500;
+      const data = err.response?.data || err.message || String(err);
+      console.error("OpenAI categorizeTask error:", data);
+      res.status(status).json({
+        error: "OpenAI categorizeTask failed",
+        details: data,
+        categoryFallback: "not_understood",
+      });
     }
+  });
+});
 
-    res.status(200).json({ category });
-  } catch (err) {
-    const status = err.response?.status || 500;
-    const data = err.response?.data || err.message || String(err);
+exports.generatePetInfo = functions.https.onRequest((req, res) => {
+  return cors(req, res, async () => {
+    try {
+      const { breed, petName } = req.body;
+      // ... (rest of generatePetInfo logic) ... 
+      // I am truncating unchanged parts for brevity in this thought, but write_to_file needs full content.
+      // Wait, replace_file_content is better if I want to just prepend and append.
+      // But multi_replace_file_content is even better.
+      // Actually, I will just rewrite the whole file to be safe and clean.
 
-    console.error("OpenAI categorizeTask error:", data);
+      // ... Re-inserting existing logic ...
+      if (!breed) {
+        res.status(400).json({ error: "Missing 'breed' field" });
+        return;
+      }
+      const OPENAI_KEY = process.env.OPENAI_API_KEY || "YOUR_OPENAI_API_KEY_HERE";
+      if (!OPENAI_KEY) { res.status(500).json({ error: "Missing OpenAI key" }); return; }
 
+      const prompt = `Create a detailed, engaging profile for a ${breed} named ${petName || "the dog"}. Structure response in JSON: description, care_instructions, fun_fact. Language: English.`;
+      const openaiRes = await axios.post("https://api.openai.com/v1/chat/completions", {
+        model: "gpt-4.1-mini",
+        messages: [{ role: "system", content: "You are a helpful pet expert. Respond in pure JSON format." }, { role: "user", content: prompt }],
+        temperature: 0.7,
+      }, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_KEY}` } });
 
-    res.status(status).json({
-      error: "OpenAI categorizeTask failed",
-      details: data,
-      categoryFallback: "not_understood",
-    });
-  }
+      let content = openaiRes.data.choices[0].message.content.replace(/```json/g, "").replace(/```/g, "").trim();
+      res.status(200).json(JSON.parse(content));
+    } catch (err) {
+      console.error("Error in generatePetInfo:", err);
+      res.status(500).json({ error: "Failed to generate info", details: err.message });
+    }
+  });
+});
+
+exports.generateDailyTip = functions.https.onRequest((req, res) => {
+  return cors(req, res, async () => {
+    // ... logic ...
+    try {
+      const { petName, recentTasks } = req.body;
+      const OPENAI_KEY = process.env.OPENAI_API_KEY || "YOUR_OPENAI_API_KEY_HERE";
+      if (!OPENAI_KEY) { res.status(500).json({ error: "Missing OpenAI key" }); return; }
+      const tasksStr = recentTasks && recentTasks.length > 0 ? recentTasks.join(", ") : "no specific tasks recently";
+      const prompt = `Generate a daily care tip for dog ${petName || "Buddy"}. Context: ${tasksStr}. One sentence.`;
+      const openaiRes = await axios.post("https://api.openai.com/v1/chat/completions", {
+        model: "gpt-4.1-mini",
+        messages: [{ role: "system", content: "You are a friendly dog care companion." }, { role: "user", content: prompt }],
+        temperature: 0.7,
+      }, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_KEY}` } });
+      res.status(200).json({ tip: openaiRes.data.choices[0].message.content.trim() });
+    } catch (err) {
+      console.error("Error in generateDailyTip:", err);
+      res.status(500).json({ error: "Failed to generate tip", details: err.message });
+    }
+  });
+});
+
+// NEW FUNCTION: Proxy for Firebase Storage Images (Fixes CORS on Web)
+exports.getStorageImage = functions.https.onRequest((req, res) => {
+  return cors(req, res, async () => {
+    try {
+      const filePath = req.query.path;
+      if (!filePath) {
+        res.status(400).send("Missing path");
+        return;
+      }
+
+      // 1. Get reference to the file
+      const bucket = admin.storage().bucket();
+      const file = bucket.file(filePath);
+
+      const [exists] = await file.exists();
+      if (!exists) {
+        res.status(404).send("File not found");
+        return;
+      }
+
+      // 2. Set long cache to avoid repeated function calls
+      res.set('Cache-Control', 'public, max-age=31536000, s-maxage=31536000');
+
+      // 3. Pipe the file
+      const readStream = file.createReadStream();
+      readStream.on('error', (err) => {
+        console.error("Stream error:", err);
+        res.status(500).end();
+      });
+      readStream.pipe(res);
+
+    } catch (error) {
+      console.error("Proxy error:", error);
+      res.status(500).send("Internal Server Error");
+    }
+  });
 });

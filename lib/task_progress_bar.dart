@@ -32,8 +32,8 @@ class _HomePageState extends State<HomePage> {
       if (userQuery.docs.isNotEmpty) {
         DocumentSnapshot userDoc = userQuery.docs.first;
         String fullName = (userDoc['fullName'] as String?) ?? 'N/A';
-        String profilePictureUrl = (userDoc['profilePictureUrl'] as String?) ?? '';
-
+        String profilePictureUrl =
+            (userDoc['profilePictureUrl'] as String?) ?? '';
 
         DocumentSnapshot translationDoc = await _firestore
             .collection('translations')
@@ -72,7 +72,9 @@ class _HomePageState extends State<HomePage> {
           .where('userId', isEqualTo: user.uid)
           .get();
 
-      return petQuery.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+      return petQuery.docs
+          .map((doc) => doc.data() as Map<String, dynamic>)
+          .toList();
     }
     return [];
   }
@@ -91,7 +93,6 @@ class _HomePageState extends State<HomePage> {
         return data;
       }).toList();
 
-
       DateTime currentDate = DateTime.now();
       tasks.retainWhere((task) {
         DateTime taskDate = (task['date'] as Timestamp).toDate();
@@ -109,7 +110,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _updateTaskCompletion(String taskId, bool isCompleted) async {
-    await _firestore.collection('tasks').doc(taskId).update({'completed': isCompleted});
+    await _firestore
+        .collection('tasks')
+        .doc(taskId)
+        .update({'completed': isCompleted});
     _refreshData();
   }
 
@@ -127,12 +131,13 @@ class _HomePageState extends State<HomePage> {
           } else if (snapshot.hasError) {
             return Center(child: Text('Error loading user data'));
           } else {
-            final userData = snapshot.data ?? {
-              'fullName': 'N/A',
-              'profilePictureUrl': '',
-              'favoritesLabel': 'My Pets',
-              'dailyTaskLabel': 'Daily Task'
-            };
+            final userData = snapshot.data ??
+                {
+                  'fullName': 'N/A',
+                  'profilePictureUrl': '',
+                  'favoritesLabel': 'My Pets',
+                  'dailyTaskLabel': 'Daily Task'
+                };
             return Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -142,14 +147,17 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       CircleAvatar(
                         radius: 40,
-                        backgroundImage: userData['profilePictureUrl']!.isNotEmpty
-                            ? NetworkImage(userData['profilePictureUrl']!)
-                            : AssetImage('assets/placeholder.png') as ImageProvider,
+                        backgroundImage:
+                            userData['profilePictureUrl']!.isNotEmpty
+                                ? NetworkImage(userData['profilePictureUrl']!)
+                                : AssetImage('assets/placeholder.png')
+                                    as ImageProvider,
                       ),
                       SizedBox(width: 16),
                       Text(
                         userData['fullName']!,
-                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -159,7 +167,8 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       Text(
                         userData['favoritesLabel']!,
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                       IconButton(
                         icon: Icon(Icons.add),
@@ -167,7 +176,8 @@ class _HomePageState extends State<HomePage> {
                           await Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => NewPetFormPage(currentLanguage: widget.currentLanguage),
+                              builder: (context) => NewPetFormPage(
+                                  currentLanguage: widget.currentLanguage),
                             ),
                           );
                           _refreshData();
@@ -179,7 +189,8 @@ class _HomePageState extends State<HomePage> {
                   FutureBuilder<List<Map<String, dynamic>>>(
                     future: _getUserPets(),
                     builder: (context, petSnapshot) {
-                      if (petSnapshot.connectionState == ConnectionState.waiting) {
+                      if (petSnapshot.connectionState ==
+                          ConnectionState.waiting) {
                         return Center(child: CircularProgressIndicator());
                       } else if (petSnapshot.hasError) {
                         return Center(child: Text('Error loading pets'));
@@ -188,46 +199,55 @@ class _HomePageState extends State<HomePage> {
                         return pets.isEmpty
                             ? Text('No pets found')
                             : Container(
-                          height: 120,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: pets.length,
-                            itemBuilder: (context, index) {
-                              final pet = pets[index];
-                              final petId = pet['id'] ?? '';
+                                height: 120,
+                                child: ListView.builder(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: pets.length,
+                                  itemBuilder: (context, index) {
+                                    final pet = pets[index];
+                                    final petId = pet['id'] ?? '';
 
-                              return petId.isNotEmpty
-                                  ? GestureDetector(
-                                onTap: () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => PetDetailsPage(petId: petId),
-                                    ),
-                                  );
-                                  _refreshData();
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                                  child: Column(
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 40,
-                                        backgroundImage: NetworkImage(pet['profilePictureUrl'] ?? 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS3hTQwsrGuYW0XGXbIB4d2noVL1ZhL7llERA&s'),
-                                      ),
-                                      SizedBox(height: 8),
-                                      Text(
-                                        pet['name'] ?? 'Unnamed',
-                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                      ),
-                                    ],
-                                  ),
+                                    return petId.isNotEmpty
+                                        ? GestureDetector(
+                                            onTap: () async {
+                                              await Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      PetDetailsPage(
+                                                          petId: petId),
+                                                ),
+                                              );
+                                              _refreshData();
+                                            },
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 8.0),
+                                              child: Column(
+                                                children: [
+                                                  CircleAvatar(
+                                                    radius: 40,
+                                                    backgroundImage: NetworkImage(
+                                                        pet['profilePictureUrl'] ??
+                                                            'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS3hTQwsrGuYW0XGXbIB4d2noVL1ZhL7llERA&s'),
+                                                  ),
+                                                  SizedBox(height: 8),
+                                                  Text(
+                                                    pet['name'] ?? 'Unnamed',
+                                                    style: TextStyle(
+                                                        fontSize: 16,
+                                                        fontWeight:
+                                                            FontWeight.bold),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          )
+                                        : Text('Invalid pet data');
+                                  },
                                 ),
-                              )
-                                  : Text('Invalid pet data');
-                            },
-                          ),
-                        );
+                              );
                       }
                     },
                   ),
@@ -237,7 +257,8 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       Text(
                         userData['dailyTaskLabel']!,
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                       IconButton(
                         icon: Icon(Icons.add),
@@ -257,7 +278,8 @@ class _HomePageState extends State<HomePage> {
                   FutureBuilder<List<Map<String, dynamic>>>(
                     future: _getUserTasks(),
                     builder: (context, taskSnapshot) {
-                      if (taskSnapshot.connectionState == ConnectionState.waiting) {
+                      if (taskSnapshot.connectionState ==
+                          ConnectionState.waiting) {
                         return Center(child: CircularProgressIndicator());
                       } else if (taskSnapshot.hasError) {
                         return Center(child: Text('Error loading tasks'));
@@ -266,49 +288,56 @@ class _HomePageState extends State<HomePage> {
                         return tasks.isEmpty
                             ? Text('No tasks found')
                             : Expanded(
-                          child: ListView.builder(
-                            itemCount: tasks.length,
-                            itemBuilder: (context, index) {
-                              final task = tasks[index];
-                              final date = (task['date'] as Timestamp).toDate();
-                              final formattedDate =
-                                  '${date.month}-${date.day} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+                                child: ListView.builder(
+                                  itemCount: tasks.length,
+                                  itemBuilder: (context, index) {
+                                    final task = tasks[index];
+                                    final date =
+                                        (task['date'] as Timestamp).toDate();
+                                    final formattedDate =
+                                        '${date.month}-${date.day} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
 
-                              return Card(
-                                margin: EdgeInsets.symmetric(vertical: 8),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(formattedDate),
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            task['petName'] ?? 'No Pet Name',
-                                            style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold),
-                                          ),
-                                          Text(
-                                            task['description'] ?? 'No Description',
-                                          ),
-                                        ],
+                                    return Card(
+                                      margin: EdgeInsets.symmetric(vertical: 8),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12.0),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(formattedDate),
+                                            Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  task['petName'] ??
+                                                      'No Pet Name',
+                                                  style: TextStyle(
+                                                      fontSize: 16,
+                                                      fontWeight:
+                                                          FontWeight.bold),
+                                                ),
+                                                Text(
+                                                  task['description'] ??
+                                                      'No Description',
+                                                ),
+                                              ],
+                                            ),
+                                            Checkbox(
+                                              value: task['completed'] ?? false,
+                                              onChanged: (value) {
+                                                _updateTaskCompletion(
+                                                    task['id'], value ?? false);
+                                              },
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                      Checkbox(
-                                        value: task['completed'] ?? false,
-                                        onChanged: (value) {
-                                          _updateTaskCompletion(task['id'], value ?? false);
-                                        },
-                                      ),
-                                    ],
-                                  ),
+                                    );
+                                  },
                                 ),
                               );
-                            },
-                          ),
-                        );
                       }
                     },
                   ),

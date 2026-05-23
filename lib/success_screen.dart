@@ -8,9 +8,21 @@ class SuccessScreen extends StatelessWidget {
         title: Text('Sikeres Regisztráció'),
       ),
       body: Center(
-        child: Text(
-          'A regisztráció sikeres volt!',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'A regisztráció sikeres volt!',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: Text('Vissza a bejelentkezéshez'),
+            ),
+          ],
         ),
       ),
     );

@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_animate/flutter_animate.dart';
+import 'dart:convert';
+import 'app_theme.dart';
+import 'footer.dart';
+import 'widgets/premium_widgets.dart';
 
 class InfoPage extends StatefulWidget {
   const InfoPage({super.key});
@@ -9,51 +15,44 @@ class InfoPage extends StatefulWidget {
   State<InfoPage> createState() => _InfoPageState();
 }
 
-/// Belső helper stat osztály 1 (pet, type) kombinációra
-class _ActivityStats {
-  DateTime lastDate;
-  int countLast7Days;
-  int countYesterday;
-
-  _ActivityStats({
-    required this.lastDate,
-    required this.countLast7Days,
-    required this.countYesterday,
-  });
-}
-
 class _InfoPageState extends State<InfoPage> {
   bool _isLoading = true;
   String? _errorMessage;
 
-  /// Itt tároljuk a felhasználó kutyafajtáihoz tartozó leírásokat
-  List<Map<String, String>> _breedInfos = [];
-
-  /// Napi 1 mondatos tipp
+  List<Map<String, dynamic>> _petInfos = [];
   String? _dailyTip;
+
+  static List<Map<String, dynamic>>? _cachedPetInfos;
+  static String? _cachedDailyTip;
+
+  static const String _generatePetInfoUrl =
+      'https://generatepetinfo-md6ydt4via-uc.a.run.app';
+  static const String _generateDailyTipUrl =
+      'https://generatedailytip-md6ydt4via-uc.a.run.app';
 
   @override
   void initState() {
     super.initState();
-    _loadBreedInfos();
-    _loadDailyTip();
+    _loadAllData();
   }
 
-  Future<void> _loadBreedInfos() async {
+  Future<void> _loadAllData() async {
+    if (_cachedPetInfos != null && _cachedDailyTip != null) {
+      if (mounted) {
+        setState(() {
+          _petInfos = _cachedPetInfos!;
+          _dailyTip = _cachedDailyTip!;
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
     try {
       final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('User not logged in');
 
-      if (user == null) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'You must be logged in to see the information.';
-        });
-        return;
-      }
-
-      final firestore = FirebaseFirestore.instance;
-
-      final petsSnapshot = await firestore
+      final petsSnapshot = await FirebaseFirestore.instance
           .collection('pets')
           .where('userId', isEqualTo: user.uid)
           .get();
@@ -61,389 +60,499 @@ class _InfoPageState extends State<InfoPage> {
       if (petsSnapshot.docs.isEmpty) {
         setState(() {
           _isLoading = false;
-          _breedInfos = [];
+          _petInfos = [];
+          _dailyTip = "Add a pet to get personalized tips!";
         });
         return;
       }
 
-      final Set<String> breedNames = {};
-      for (final doc in petsSnapshot.docs) {
+      final recentTasksSnap = await FirebaseFirestore.instance
+          .collection('tasks')
+          .where('userId', isEqualTo: user.uid)
+          .orderBy('date', descending: true)
+          .limit(5)
+          .get();
+
+      final recentTasks = recentTasksSnap.docs.map((d) {
+        final data = d.data();
+        return "${data['description']} (${data['type']})";
+      }).toList();
+
+      final firstPetName =
+          petsSnapshot.docs.first['name'] as String? ?? 'your pet';
+
+      final tipFuture = _fetchDailyTip(firstPetName, recentTasks);
+
+      final petInfoFutures = petsSnapshot.docs.map((doc) async {
         final data = doc.data();
-        final breed = data['breed'];
-        if (breed is String && breed.trim().isNotEmpty) {
-          breedNames.add(breed.trim());
+        final breed = data['breed'] as String? ?? 'Unknown';
+        final name = data['name'] as String? ?? 'Pet';
+
+        if (breed.isEmpty || breed == 'Unknown') return null;
+
+        return _fetchPetInfo(breed, name);
+      }).toList();
+
+      final results = await Future.wait([tipFuture, ...petInfoFutures]);
+
+      _dailyTip = results[0] as String?;
+
+      _petInfos = [];
+      for (int i = 1; i < results.length; i++) {
+        if (results[i] != null) {
+          _petInfos.add(results[i] as Map<String, dynamic>);
         }
       }
 
-      if (breedNames.isEmpty) {
+      _cachedPetInfos = _petInfos;
+      _cachedDailyTip = _dailyTip;
+
+      if (mounted) {
         setState(() {
           _isLoading = false;
-          _breedInfos = [];
         });
-        return;
       }
-
-      final List<Map<String, String>> infos = [];
-
-      for (final breed in breedNames) {
-        final querySnapshot = await firestore
-            .collection('dog_breed')
-            .where('name', isEqualTo: breed)
-            .limit(1)
-            .get();
-
-        if (querySnapshot.docs.isNotEmpty) {
-          final dogData =
-          querySnapshot.docs.first.data() as Map<String, dynamic>;
-
-          final description =
-              (dogData['description'] as String?) ?? 'No description available.';
-
-          infos.add({
-            'breedName': breed,
-            'description': description,
-          });
-        }
-      }
-
-      setState(() {
-        _isLoading = false;
-        _breedInfos = infos;
-      });
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Error loading information: $e';
-      });
+      print("Error loading info page: $e");
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = "Unable to load insights. Please try again later.";
+        });
+      }
     }
   }
 
-  /// Napi 1 mondatos tipp generálása a tasks kollekció alapján
-  Future<void> _loadDailyTip() async {
+  Future<String> _fetchDailyTip(
+      String petName, List<String> recentTasks) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        setState(() {
-          _dailyTip =
-          'You\'re doing great taking care of your pets – even a small walk or play session today makes a big difference. 🐾';
-        });
-        return;
+      final response = await http.post(
+        Uri.parse(_generateDailyTipUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'petName': petName,
+          'recentTasks': recentTasks,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['tip'] as String;
       }
-
-      final firestore = FirebaseFirestore.instance;
-
-      final tasksSnapshot = await firestore
-          .collection('tasks')
-          .where('userId', isEqualTo: user.uid)
-          .get();
-
-      if (tasksSnapshot.docs.isEmpty) {
-        setState(() {
-          _dailyTip =
-          'You don\'t have any tasks yet – try adding reminders for walks, vet visits or grooming to support your pet\'s routine. 🐾';
-        });
-        return;
-      }
-
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final yesterday = today.subtract(const Duration(days: 1));
-      final weekAgo = today.subtract(const Duration(days: 7));
-
-      final Map<String, Map<String, _ActivityStats>> statsCompleted = {};
-      final Map<String, Map<String, _ActivityStats>> statsAll = {};
-
-      void updateStatsMap(
-          Map<String, Map<String, _ActivityStats>> base,
-          String petName,
-          String type,
-          DateTime date,
-          ) {
-        final normalized =
-        DateTime(date.year, date.month, date.day); // csak nap pontosság
-
-        base.putIfAbsent(petName, () => {});
-        final petMap = base[petName]!;
-
-        petMap.putIfAbsent(
-          type,
-              () => _ActivityStats(
-            lastDate: normalized,
-            countLast7Days: 0,
-            countYesterday: 0,
-          ),
-        );
-
-        final stats = petMap[type]!;
-
-        if (normalized.isAfter(stats.lastDate)) {
-          stats.lastDate = normalized;
-        }
-
-        if (!normalized.isBefore(weekAgo) && !normalized.isAfter(today)) {
-          stats.countLast7Days += 1;
-        }
-
-        if (normalized.isAtSameMomentAs(yesterday)) {
-          stats.countYesterday += 1;
-        }
-      }
-
-      for (final doc in tasksSnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-
-        final type = (data['type'] as String?) ?? 'not_understood';
-        if (type == 'not_understood') continue;
-
-        final petName = (data['petName'] as String?) ?? 'your dog';
-
-        final ts = data['date'];
-        if (ts is! Timestamp) continue;
-        final date = ts.toDate();
-        if (date.isAfter(now)) continue;
-
-        updateStatsMap(statsAll, petName, type, date);
-
-        final completed = data['completed'] as bool? ?? false;
-        if (completed) {
-          updateStatsMap(statsCompleted, petName, type, date);
-        }
-      }
-
-      final baseStats =
-      statsCompleted.isNotEmpty ? statsCompleted : statsAll;
-
-      if (baseStats.isEmpty) {
-        setState(() {
-          _dailyTip =
-          'You\'re doing great taking care of your pets – even a small walk or play session today makes a big difference. 🐾';
-        });
-        return;
-      }
-
-      const Map<String, int> recommendedGapDays = {
-        'walk': 1,
-        'feeding': 1,
-        'watering': 1,
-        'play': 1,
-        'training': 2,
-        'multi_pet': 2,
-        'cleaning': 7,
-        'grooming': 30,
-        'shopping': 30,
-        'medication': 1,
-        'vet': 180,
-        'other_pet_related': 14,
-      };
-
-      const Map<String, String> typeToPhrase = {
-        'walk': 'gone for a proper walk with',
-        'feeding': 'given a proper meal to',
-        'watering': 'refilled the water bowl for',
-        'play': 'had a dedicated play session with',
-        'training': 'done some training with',
-        'multi_pet': 'spent one-on-one time with',
-        'cleaning': 'cleaned the bed and bowls of',
-        'grooming': 'done grooming for',
-        'shopping': 'checked the supplies for',
-        'medication': 'given medication to',
-        'vet': 'visited the vet with',
-        'other_pet_related': 'done this kind of care for',
-      };
-
-      String? overduePet;
-      String? overdueType;
-      double bestOverdueScore = 0;
-      int bestOverdueDaysSince = 0;
-
-      baseStats.forEach((petName, typeMap) {
-        typeMap.forEach((type, stats) {
-          final daysSince = now.difference(stats.lastDate).inDays;
-          final gap = recommendedGapDays[type] ?? 14;
-          final score = daysSince / gap;
-
-          if (score > bestOverdueScore && daysSince >= gap) {
-            bestOverdueScore = score;
-            overduePet = petName;
-            overdueType = type;
-            bestOverdueDaysSince = daysSince;
-          }
-        });
-      });
-
-      String tip;
-
-      if (overduePet != null && overdueType != null) {
-        final phrase = typeToPhrase[overdueType] ?? 'done this activity with';
-
-        if (overdueType == 'vet' && bestOverdueDaysSince >= 60) {
-          final months = (bestOverdueDaysSince / 30).round();
-          tip =
-          'It\'s been around $months months since you last $phrase $overduePet – it might be a good idea to plan a vet check-up soon. 🐾';
-        } else {
-          tip =
-          'It looks like you haven\'t $phrase $overduePet for about $bestOverdueDaysSince days – today could be a great day to do it. 🐾';
-        }
-      } else {
-
-        String? bestPet;
-        String? bestType;
-        _ActivityStats? bestStats;
-        int bestCount7 = -1;
-        DateTime bestLastDate = DateTime.fromMillisecondsSinceEpoch(0);
-
-        baseStats.forEach((petName, typeMap) {
-          typeMap.forEach((type, stats) {
-            if (stats.countLast7Days > bestCount7 ||
-                (stats.countLast7Days == bestCount7 &&
-                    stats.lastDate.isAfter(bestLastDate))) {
-              bestCount7 = stats.countLast7Days;
-              bestLastDate = stats.lastDate;
-              bestPet = petName;
-              bestType = type;
-              bestStats = stats;
-            }
-          });
-        });
-
-        if (bestPet != null && bestType != null && bestStats != null) {
-          final phrase = typeToPhrase[bestType] ?? 'spent time with';
-          final stats = bestStats!; // <-- ITT TESSZÜK NEM NULL-LÁ
-
-          if (stats.countYesterday > 0) {
-            tip =
-            'Yesterday you $phrase $bestPet ${stats.countYesterday} time(s) – that\'s fantastic, keep it up! 🐾';
-          } else if (stats.countLast7Days > 0) {
-            tip =
-            'In the last week you $phrase $bestPet ${stats.countLast7Days} time(s) – you\'re doing a great job caring for your dog! 🐾';
-          } else {
-            final daysSince = now.difference(stats.lastDate).inDays;
-            tip =
-            'You\'re taking good care of $bestPet – your last time you $phrase was about $daysSince days ago, maybe repeat it again soon. 🐾';
-          }
-        } else {
-          tip =
-          'You\'re doing great taking care of your pets – even a small walk or play session today makes a big difference. 🐾';
-        }
-      }
-
-      setState(() {
-        _dailyTip = tip;
-      });
     } catch (e) {
-      print('Error while generating daily tip: $e');
-      setState(() {
-        _dailyTip =
-        'You\'re doing great taking care of your pets – even a small walk or play session today makes a big difference. 🐾';
-      });
+      print("Daily Tip Error: $e");
     }
+    return "Remember to give your pet lots of love today! 🐾";
+  }
+
+  Future<Map<String, dynamic>?> _fetchPetInfo(String breed, String name) async {
+    try {
+      final response = await http.post(
+        Uri.parse(_generatePetInfoUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'breed': breed,
+          'petName': name,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+    } catch (e) {
+      print("Pet Info Error ($breed): $e");
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Information'),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-          ? Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            _errorMessage!,
-            textAlign: TextAlign.center,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: Stack(
+        children: [
+          Positioned(
+            top: -80,
+            right: -80,
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    AppTheme.mint.withOpacity(isDark ? 0.1 : 0.15),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
-      )
-          : _breedInfos.isEmpty
-          ? Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_dailyTip != null) ...[
-                Card(
-                  margin:
-                  const EdgeInsets.only(bottom: 16.0),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                      _dailyTip!,
-                      style:
-                      const TextStyle(fontSize: 16),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
+          SafeArea(
+            child: Column(
+              children: [
+                _buildHeader(isDark),
+                Expanded(
+                  child: _isLoading
+                      ? _buildLoadingState(isDark)
+                      : _errorMessage != null
+                          ? EmptyState(
+                              icon: Icons.error_outline_rounded,
+                              title: 'Oops!',
+                              subtitle: _errorMessage,
+                              actionLabel: 'Retry',
+                              onAction: () {
+                                setState(() {
+                                  _isLoading = true;
+                                  _errorMessage = null;
+                                  _cachedPetInfos = null;
+                                  _cachedDailyTip = null;
+                                });
+                                _loadAllData();
+                              },
+                            )
+                          : RefreshIndicator(
+                              onRefresh: () async {
+                                setState(() {
+                                  _cachedPetInfos = null;
+                                  _cachedDailyTip = null;
+                                });
+                                await _loadAllData();
+                              },
+                              child: SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding: const EdgeInsets.all(20),
+                                child: Column(
+                                  children: [
+                                    if (_dailyTip != null)
+                                      _buildDailyTipToken(_dailyTip!),
+                                    const SizedBox(height: 24),
+                                    _buildSectionTitle('Breed Insights',
+                                        Icons.pets_rounded, isDark),
+                                    if (_petInfos.isEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.all(20.0),
+                                        child: Text(
+                                          "No breed info available. Ensure your pets have a breed set!",
+                                          style: TextStyle(
+                                            color: isDark
+                                                ? Colors.grey[400]
+                                                : Colors.grey[600],
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ..._petInfos
+                                        .map((info) =>
+                                            _buildPetInfoCard(info, isDark))
+                                        .toList(),
+                                    const SizedBox(height: 40),
+                                  ],
+                                ),
+                              ),
+                            ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: _buildBottomNav(isDark),
+    );
+  }
+
+  Widget _buildHeader(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isDark ? AppTheme.darkCard : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 10,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.lightbulb_rounded,
+                  size: 20,
+                  color: Colors.amber,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'AI Insights',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : AppTheme.darkText,
+                    ),
+                  ),
+                  Text(
+                    'Daily tips & knowledge',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _isLoading = true;
+                _cachedPetInfos = null;
+                _cachedDailyTip = null;
+              });
+              _loadAllData();
+            },
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark ? AppTheme.darkCard : Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.refresh_rounded,
+                size: 20,
+                color: isDark ? Colors.white : AppTheme.darkText,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.2, end: 0);
+  }
+
+  Widget _buildDailyTipToken(String tip) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: AppTheme.mintGradient,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.mint.withOpacity(0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.star_rounded,
+                    color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
               const Text(
-                'You don\'t have any breeds with information yet.\n\n'
-                    'Add a pet to see related information here. 🐾',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18),
+                "Daily Tip",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            tip,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              height: 1.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    )
+        .animate()
+        .fadeIn(delay: 100.ms, duration: 500.ms)
+        .scale(begin: const Offset(0.95, 0.95), end: const Offset(1, 1));
+  }
+
+  Widget _buildSectionTitle(String title, IconData icon, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16, left: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: AppTheme.mint),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : AppTheme.darkText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPetInfoCard(Map<String, dynamic> info, bool isDark) {
+    return AnimatedCard(
+      margin: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.pets_rounded, color: Colors.blue),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  "About ${info['breedName'] ?? 'Your Dog'}",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : AppTheme.darkText,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            info['description'] ?? '',
+            style: TextStyle(
+              color: isDark ? Colors.grey[300] : Colors.grey[700],
+              height: 1.6,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 24),
+          _buildInfoRow(Icons.favorite_rounded, "Care",
+              info['care_instructions'], isDark),
+          const SizedBox(height: 16),
+          _buildInfoRow(
+              Icons.lightbulb_rounded, "Fun Fact", info['fun_fact'], isDark),
+        ],
+      ),
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
+  }
+
+  Widget _buildInfoRow(
+      IconData icon, String title, String? content, bool isDark) {
+    if (content == null || content.isEmpty) return const SizedBox.shrink();
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: AppTheme.mint),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : AppTheme.darkText,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                content,
+                style: TextStyle(
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  fontSize: 14,
+                  height: 1.4,
+                ),
               ),
             ],
           ),
         ),
-      )
-          : ListView.builder(
-        padding: const EdgeInsets.all(16.0),
-        itemCount:
-        _breedInfos.length + (_dailyTip != null ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (_dailyTip != null && index == 0) {
-            return Card(
-              margin: const EdgeInsets.only(bottom: 16.0),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  _dailyTip!,
-                  style: const TextStyle(fontSize: 16),
+      ],
+    );
+  }
+
+  Widget _buildLoadingState(bool isDark) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isDark ? AppTheme.darkCard : Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.mint.withOpacity(0.3),
+                  blurRadius: 30,
                 ),
-              ),
-            );
-          }
-
-          final infoIndex =
-              index - (_dailyTip != null ? 1 : 0);
-          final info = _breedInfos[infoIndex];
-          final breedName =
-              info['breedName'] ?? 'Unknown';
-          final description =
-              info['description'] ??
-                  'No description available.';
-
-          return Card(
-            margin:
-            const EdgeInsets.only(bottom: 16.0),
-            child: Padding(
-              padding:
-              const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    breedName,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    description,
-                    style: const TextStyle(
-                        fontSize: 16),
-                  ),
-                ],
-              ),
+              ],
             ),
-          );
-        },
+            child: const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.mint),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            "Consulting the experts... 🧠",
+            style: TextStyle(
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomNav(bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppTheme.darkSurface : Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Footer(
+          onTabSelected: (index) {},
+          currentIndex: 4,
+        ),
       ),
     );
   }
